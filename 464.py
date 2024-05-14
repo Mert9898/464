@@ -5,23 +5,20 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense
+from sklearn.metrics import precision_score, recall_score, f1_score
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 
-# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('stopwords')
 
-# Initialize stemmer and lemmatizer
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
-
-# Preprocess text function
 
 
 def preprocess_text(text, language='english'):
@@ -32,7 +29,6 @@ def preprocess_text(text, language='english'):
     return tokens
 
 
-# Load datasets
 dataset_1 = load_dataset(
     "hkust-nlp/deita-quality-scorer-data", split='validation')
 dataset_2 = load_dataset(
@@ -40,7 +36,6 @@ dataset_2 = load_dataset(
 dataset_3 = load_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", split='train')
 
-# Preprocess datasets
 processed_data_1 = [' '.join(preprocess_text(entry['input']))
                     for entry in dataset_1]
 processed_data_2 = [' '.join(preprocess_text(
@@ -48,7 +43,6 @@ processed_data_2 = [' '.join(preprocess_text(
 processed_data_3 = [' '.join(preprocess_text(
     entry['movie'], language='turkish')) for entry in dataset_3]
 
-# Tokenize and pad sequences
 tokenizer = Tokenizer(num_words=10000)
 tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
 sequences_1 = tokenizer.texts_to_sequences(processed_data_1)
@@ -63,8 +57,6 @@ data_1 = pad_sequences(sequences_1, maxlen=max_seq_length_1)
 data_2 = pad_sequences(sequences_2, maxlen=max_seq_length_2)
 data_3 = pad_sequences(sequences_3, maxlen=max_seq_length_3)
 
-# Model creation function
-
 
 def create_model(input_length):
     model = Sequential([
@@ -72,27 +64,46 @@ def create_model(input_length):
         LSTM(128),
         Dense(1, activation='sigmoid')
     ])
-    model.compile(optimizer='adam', loss='binary_crossentropy',
-                  metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[
+                  'accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
     return model
 
 
-# Create models for each dataset
 model_1 = create_model(max_seq_length_1)
 model_2 = create_model(max_seq_length_2)
 model_3 = create_model(max_seq_length_3)
 
-# Generate dummy labels for binary classification
+
 labels_1 = np.array([i % 2 for i in range(len(data_1))])
 labels_2 = np.array([i % 2 for i in range(len(data_2))])
 labels_3 = np.array([i % 2 for i in range(len(data_3))])
 
-# Train models
-model_1.fit(data_1, labels_1, epochs=10, validation_split=0.2)
-model_2.fit(data_2, labels_2, epochs=10, validation_split=0.2)
-model_3.fit(data_3, labels_3, epochs=10, validation_split=0.2)
 
-# Print dataset information and examples
+history_1 = model_1.fit(data_1, labels_1, epochs=10, validation_split=0.2)
+history_2 = model_2.fit(data_2, labels_2, epochs=10, validation_split=0.2)
+history_3 = model_3.fit(data_3, labels_3, epochs=10, validation_split=0.2)
+
+
+def evaluate_model(model, data, labels):
+    predictions = (model.predict(data) > 0.5).astype("int32")
+    precision = precision_score(labels, predictions)
+    recall = recall_score(labels, predictions)
+    f1 = f1_score(labels, predictions)
+    return precision, recall, f1
+
+
+precision_1, recall_1, f1_1 = evaluate_model(model_1, data_1, labels_1)
+precision_2, recall_2, f1_2 = evaluate_model(model_2, data_2, labels_2)
+precision_3, recall_3, f1_3 = evaluate_model(model_3, data_3, labels_3)
+
+print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
+    precision_1, recall_1, f1_1))
+print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
+    precision_2, recall_2, f1_2))
+print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
+    precision_3, recall_3, f1_3))
+
+
 info = load_dataset("hkust-nlp/deita-quality-scorer-data")
 print(info)
 
