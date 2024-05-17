@@ -136,7 +136,7 @@ def plot_history(history, title):
 
     plt.figure(figsize=(14, 6))
 
-    plt.subplot(1, 2, 1)
+    plt.subplot(2, 2, 1)
     plt.plot(epochs, history.history['accuracy'], label='Training Accuracy')
     plt.plot(epochs, history.history['val_accuracy'],
              label='Validation Accuracy')
@@ -145,7 +145,7 @@ def plot_history(history, title):
     plt.title(f'{title} - Accuracy')
     plt.legend()
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(2, 2, 2)
     plt.plot(epochs, history.history['loss'], label='Training Loss')
     plt.plot(epochs, history.history['val_loss'], label='Validation Loss')
     plt.xlabel('Epochs')
@@ -153,9 +153,7 @@ def plot_history(history, title):
     plt.title(f'{title} - Loss')
     plt.legend()
 
-    plt.figure(figsize=(14, 6))
-
-    plt.subplot(1, 2, 1)
+    plt.subplot(2, 2, 3)
     plt.plot(epochs, history.history['precision'], label='Training Precision')
     plt.plot(epochs, history.history['val_precision'],
              label='Validation Precision')
@@ -164,7 +162,7 @@ def plot_history(history, title):
     plt.title(f'{title} - Precision')
     plt.legend()
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(2, 2, 4)
     plt.plot(epochs, history.history['recall'], label='Training Recall')
     plt.plot(epochs, history.history['val_recall'], label='Validation Recall')
     plt.xlabel('Epochs')
