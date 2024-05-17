@@ -6,8 +6,8 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from tensorflow.keras.regularizers import l2
-import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score
+import matplotlib.pyplot as plt
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
@@ -38,14 +38,12 @@ dataset_2 = load_dataset(
 dataset_3 = load_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", split='train')
 
-
 processed_data_1 = [' '.join(preprocess_text(entry['input']))
                     for entry in dataset_1]
 processed_data_2 = [' '.join(preprocess_text(
     entry['product_name'], language='turkish')) for entry in dataset_2]
 processed_data_3 = [' '.join(preprocess_text(
     entry['movie'], language='turkish')) for entry in dataset_3]
-
 
 tokenizer = Tokenizer(num_words=10000)
 tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
@@ -82,15 +80,19 @@ model_1 = create_model(max_seq_length_1)
 model_2 = create_model(max_seq_length_2)
 model_3 = create_model(max_seq_length_3)
 
-
 labels_1 = np.array([i % 2 for i in range(len(data_1))])
 labels_2 = np.array([i % 2 for i in range(len(data_2))])
 labels_3 = np.array([i % 2 for i in range(len(data_3))])
 
+early_stopping = tf.keras.callbacks.EarlyStopping(
+    monitor='val_loss', patience=2, restore_best_weights=True)
 
-history_1 = model_1.fit(data_1, labels_1, epochs=10, validation_split=0.2)
-history_2 = model_2.fit(data_2, labels_2, epochs=10, validation_split=0.2)
-history_3 = model_3.fit(data_3, labels_3, epochs=10, validation_split=0.2)
+history_1 = model_1.fit(data_1, labels_1, epochs=10, batch_size=64,
+                        validation_split=0.2, callbacks=[early_stopping])
+history_2 = model_2.fit(data_2, labels_2, epochs=10, batch_size=64,
+                        validation_split=0.2, callbacks=[early_stopping])
+history_3 = model_3.fit(data_3, labels_3, epochs=10, batch_size=64,
+                        validation_split=0.2, callbacks=[early_stopping])
 
 
 def evaluate_model(model, data, labels):
@@ -105,14 +107,12 @@ precision_1, recall_1, f1_1 = evaluate_model(model_1, data_1, labels_1)
 precision_2, recall_2, f1_2 = evaluate_model(model_2, data_2, labels_2)
 precision_3, recall_3, f1_3 = evaluate_model(model_3, data_3, labels_3)
 
-
 print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_1, recall_1, f1_1))
 print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_2, recall_2, f1_2))
 print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_3, recall_3, f1_3))
-
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
@@ -121,7 +121,6 @@ example_entry_3 = dataset_3[0]
 print("Example Entry from Dataset 1:", example_entry_1)
 print("Example Entry from Dataset 2:", example_entry_2)
 print("Example Entry from Dataset 3:", example_entry_3)
-
 
 print("Length of data_1:", len(data_1))
 print("Length of labels_1:", len(labels_1))
