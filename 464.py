@@ -4,7 +4,9 @@ from datasets import load_dataset
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, LSTM, Dense
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
+from tensorflow.keras.regularizers import l2
+import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score
 import nltk
 from nltk.tokenize import word_tokenize
@@ -36,6 +38,7 @@ dataset_2 = load_dataset(
 dataset_3 = load_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", split='train')
 
+
 processed_data_1 = [' '.join(preprocess_text(entry['input']))
                     for entry in dataset_1]
 processed_data_2 = [' '.join(preprocess_text(
@@ -43,8 +46,10 @@ processed_data_2 = [' '.join(preprocess_text(
 processed_data_3 = [' '.join(preprocess_text(
     entry['movie'], language='turkish')) for entry in dataset_3]
 
+
 tokenizer = Tokenizer(num_words=10000)
 tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
+
 sequences_1 = tokenizer.texts_to_sequences(processed_data_1)
 sequences_2 = tokenizer.texts_to_sequences(processed_data_2)
 sequences_3 = tokenizer.texts_to_sequences(processed_data_3)
@@ -61,11 +66,15 @@ data_3 = pad_sequences(sequences_3, maxlen=max_seq_length_3)
 def create_model(input_length):
     model = Sequential([
         Embedding(input_dim=10000, output_dim=64, input_length=input_length),
-        LSTM(128),
-        Dense(1, activation='sigmoid')
+        LSTM(128, kernel_regularizer=l2(0.01), return_sequences=True),
+        Dropout(0.5),
+        LSTM(128, kernel_regularizer=l2(0.01)),
+        Dropout(0.5),
+        Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01))
     ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[
-                  'accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
+    model.compile(optimizer='adam',
+                  loss='binary_crossentropy',
+                  metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
     return model
 
 
@@ -96,6 +105,7 @@ precision_1, recall_1, f1_1 = evaluate_model(model_1, data_1, labels_1)
 precision_2, recall_2, f1_2 = evaluate_model(model_2, data_2, labels_2)
 precision_3, recall_3, f1_3 = evaluate_model(model_3, data_3, labels_3)
 
+
 print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_1, recall_1, f1_1))
 print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
@@ -104,18 +114,68 @@ print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_3, recall_3, f1_3))
 
 
-info = load_dataset("hkust-nlp/deita-quality-scorer-data")
-print(info)
+example_entry_1 = dataset_1[0]
+example_entry_2 = dataset_2[0]
+example_entry_3 = dataset_3[0]
 
-example_entry = dataset_1[0]
-print(example_entry)
+print("Example Entry from Dataset 1:", example_entry_1)
+print("Example Entry from Dataset 2:", example_entry_2)
+print("Example Entry from Dataset 3:", example_entry_3)
 
-print(dataset_1[0])
-print(dataset_2[0])
-print(dataset_3[0])
+
 print("Length of data_1:", len(data_1))
 print("Length of labels_1:", len(labels_1))
 print("Length of data_2:", len(data_2))
 print("Length of labels_2:", len(labels_2))
 print("Length of data_3:", len(data_3))
 print("Length of labels_3:", len(labels_3))
+
+
+def plot_history(history, title):
+    epochs = range(1, len(history.history['accuracy']) + 1)
+
+    plt.figure(figsize=(14, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, history.history['accuracy'], label='Training Accuracy')
+    plt.plot(epochs, history.history['val_accuracy'],
+             label='Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.title(f'{title} - Accuracy')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, history.history['loss'], label='Training Loss')
+    plt.plot(epochs, history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title(f'{title} - Loss')
+    plt.legend()
+
+    plt.figure(figsize=(14, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, history.history['precision'], label='Training Precision')
+    plt.plot(epochs, history.history['val_precision'],
+             label='Validation Precision')
+    plt.xlabel('Epochs')
+    plt.ylabel('Precision')
+    plt.title(f'{title} - Precision')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, history.history['recall'], label='Training Recall')
+    plt.plot(epochs, history.history['val_recall'], label='Validation Recall')
+    plt.xlabel('Epochs')
+    plt.ylabel('Recall')
+    plt.title(f'{title} - Recall')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+plot_history(history_1, 'Model 1')
+plot_history(history_2, 'Model 2')
+plot_history(history_3, 'Model 3')
