@@ -94,7 +94,8 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     logging_dir='./logs',
     logging_steps=10,
-    evaluation_strategy='epoch',
+    evaluation_strategy='epoch',  # Set evaluation strategy to 'epoch'
+    save_strategy='epoch',        # Set save strategy to 'epoch'
     save_total_limit=1,
     load_best_model_at_end=True,
 )
