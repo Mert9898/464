@@ -4,6 +4,7 @@ from datasets import load_dataset
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
+from torch.utils.data import DataLoader
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
@@ -81,23 +82,32 @@ val_size = len(dataset) - train_size
 train_dataset, val_dataset = torch.utils.data.random_split(
     dataset, [train_size, val_size])
 
+# Use DataLoader for optimized data loading
+train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=16)
+
 # Initialize model
 model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
 
-# Training arguments
+# Training arguments with mixed precision
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=3,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    num_train_epochs=3,  # Set epochs
+    per_device_train_batch_size=16,  # Adjust batch size
+    per_device_eval_batch_size=16,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
-    logging_steps=10,
+    logging_steps=50,  # Increase logging steps to reduce logging frequency
     evaluation_strategy='epoch',  # Set evaluation strategy to 'epoch'
     save_strategy='epoch',        # Set save strategy to 'epoch'
     save_total_limit=1,
     load_best_model_at_end=True,
+    learning_rate=5e-5,  # Increase learning rate
+    report_to='none',  # Disable reporting to avoid unnecessary overhead
+    fp16=True,  # Enable mixed precision training
+    # Use gradient accumulation to simulate larger batch size
+    gradient_accumulation_steps=2
 )
 
 # Metrics function
@@ -121,6 +131,10 @@ trainer = Trainer(
     compute_metrics=compute_metrics,
     data_collator=DataCollatorWithPadding(tokenizer),
 )
+
+# Ensure GPU is used if available
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
 
 # Train the model
 trainer.train()
