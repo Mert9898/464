@@ -4,7 +4,7 @@ from datasets import load_dataset
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
@@ -27,14 +27,22 @@ def preprocess_text(text, language='english'):
     ))) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
+# Load and sample datasets
 
-# Load datasets
-dataset_1 = load_dataset(
-    "hkust-nlp/deita-quality-scorer-data", split='validation')
-dataset_2 = load_dataset(
-    "turkish-nlp-suite/vitamins-supplements-reviews", split='train')
-dataset_3 = load_dataset(
-    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", split='train')
+
+def load_and_sample_dataset(dataset_name, split, sample_size):
+    dataset = load_dataset(dataset_name, split=split)
+    indices = np.random.choice(len(dataset), sample_size, replace=False)
+    dataset = dataset.select(indices)
+    return dataset
+
+
+dataset_1 = load_and_sample_dataset(
+    "hkust-nlp/deita-quality-scorer-data", 'validation', 2000)
+dataset_2 = load_and_sample_dataset(
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', 2000)
+dataset_3 = load_and_sample_dataset(
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', 2000)
 
 # Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
@@ -79,8 +87,10 @@ dataset = TextDataset(encodings, labels)
 # Split into training and validation sets
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
-train_dataset, val_dataset = torch.utils.data.random_split(
-    dataset, [train_size, val_size])
+train_indices, val_indices = torch.utils.data.random_split(
+    range(len(dataset)), [train_size, val_size])
+train_dataset = Subset(dataset, train_indices)
+val_dataset = Subset(dataset, val_indices)
 
 # Use DataLoader for optimized data loading
 train_dataloader = DataLoader(
@@ -92,7 +102,7 @@ val_dataloader = DataLoader(
 model = DistilBertForSequenceClassification.from_pretrained(
     'distilbert-base-uncased')
 
-# Training arguments with mixed precision and optimized settings
+# Training arguments with increased learning rate and optimized settings
 training_args = TrainingArguments(
     output_dir='./results',
     num_train_epochs=2,  # Reduce number of epochs
@@ -106,7 +116,7 @@ training_args = TrainingArguments(
     save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
-    learning_rate=5e-5,
+    learning_rate=5e-4,  # Increase learning rate significantly
     report_to='none',  # Disable reporting to avoid unnecessary overhead
     fp16=True,  # Enable mixed precision training
     gradient_accumulation_steps=8  # Increase gradient accumulation steps
