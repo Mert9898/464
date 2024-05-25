@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from datasets import load_dataset
-from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
 from torch.utils.data import DataLoader
@@ -51,10 +51,10 @@ labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
 # Initialize tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-# Tokenize data
-encodings = tokenizer(texts, truncation=True, padding=True, max_length=512)
+# Tokenize data with a reduced max length
+encodings = tokenizer(texts, truncation=True, padding=True, max_length=128)
 
 # Convert to dataset
 
@@ -83,31 +83,33 @@ train_dataset, val_dataset = torch.utils.data.random_split(
     dataset, [train_size, val_size])
 
 # Use DataLoader for optimized data loading
-train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=16)
+train_dataloader = DataLoader(
+    train_dataset, batch_size=8, shuffle=True, num_workers=8, pin_memory=True)
+val_dataloader = DataLoader(
+    val_dataset, batch_size=8, num_workers=8, pin_memory=True)
 
 # Initialize model
-model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+model = DistilBertForSequenceClassification.from_pretrained(
+    'distilbert-base-uncased')
 
-# Training arguments with mixed precision
+# Training arguments with mixed precision and optimized settings
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=3,  # Set epochs
-    per_device_train_batch_size=16,  # Adjust batch size
-    per_device_eval_batch_size=16,
+    num_train_epochs=2,  # Reduce number of epochs
+    per_device_train_batch_size=8,  # Reduce batch size
+    per_device_eval_batch_size=8,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
-    logging_steps=50,  # Increase logging steps to reduce logging frequency
-    evaluation_strategy='epoch',  # Set evaluation strategy to 'epoch'
-    save_strategy='epoch',        # Set save strategy to 'epoch'
+    logging_steps=500,  # Increase logging steps to reduce logging frequency
+    evaluation_strategy='epoch',
+    save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
-    learning_rate=5e-5,  # Increase learning rate
+    learning_rate=5e-5,
     report_to='none',  # Disable reporting to avoid unnecessary overhead
     fp16=True,  # Enable mixed precision training
-    # Use gradient accumulation to simulate larger batch size
-    gradient_accumulation_steps=2
+    gradient_accumulation_steps=8  # Increase gradient accumulation steps
 )
 
 # Metrics function
