@@ -32,17 +32,21 @@ def preprocess_text(text, language='english'):
 
 def load_and_sample_dataset(dataset_name, split, sample_size):
     dataset = load_dataset(dataset_name, split=split)
-    indices = np.random.choice(len(dataset), sample_size, replace=False)
+    actual_sample_size = min(len(dataset), sample_size)
+    indices = np.random.choice(len(dataset), actual_sample_size, replace=False)
     dataset = dataset.select(indices)
     return dataset
 
 
+# Adjust sample sizes dynamically based on dataset availability
+sample_size = 2000
+
 dataset_1 = load_and_sample_dataset(
-    "hkust-nlp/deita-quality-scorer-data", 'validation', 2000)
+    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
-    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', 2000)
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size)
 dataset_3 = load_and_sample_dataset(
-    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', 2000)
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
 # Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
