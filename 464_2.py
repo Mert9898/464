@@ -39,7 +39,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
 
 
 # Adjust sample sizes dynamically based on dataset availability
-sample_size = 2000
+sample_size = 500  # Further reduced sample size
 
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
@@ -98,9 +98,9 @@ val_dataset = Subset(dataset, val_indices)
 
 # Use DataLoader for optimized data loading
 train_dataloader = DataLoader(
-    train_dataset, batch_size=8, shuffle=True, num_workers=8, pin_memory=True)
+    train_dataset, batch_size=16, shuffle=True, num_workers=8, pin_memory=True)
 val_dataloader = DataLoader(
-    val_dataset, batch_size=8, num_workers=8, pin_memory=True)
+    val_dataset, batch_size=16, num_workers=8, pin_memory=True)
 
 # Initialize model
 model = DistilBertForSequenceClassification.from_pretrained(
@@ -110,20 +110,20 @@ model = DistilBertForSequenceClassification.from_pretrained(
 training_args = TrainingArguments(
     output_dir='./results',
     num_train_epochs=2,  # Reduce number of epochs
-    per_device_train_batch_size=8,  # Reduce batch size
-    per_device_eval_batch_size=8,
+    per_device_train_batch_size=16,  # Adjust batch size
+    per_device_eval_batch_size=16,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
     logging_steps=500,  # Increase logging steps to reduce logging frequency
-    evaluation_strategy='epoch',
+    eval_strategy='epoch',
     save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
     learning_rate=5e-4,  # Increase learning rate significantly
     report_to='none',  # Disable reporting to avoid unnecessary overhead
     fp16=True,  # Enable mixed precision training
-    gradient_accumulation_steps=8  # Increase gradient accumulation steps
+    gradient_accumulation_steps=4  # Adjust gradient accumulation steps
 )
 
 # Metrics function
@@ -131,9 +131,9 @@ training_args = TrainingArguments(
 
 def compute_metrics(p):
     preds = np.argmax(p.predictions, axis=1)
-    precision = precision_score(p.label_ids, preds)
-    recall = recall_score(p.label_ids, preds)
-    f1 = f1_score(p.label_ids, preds)
+    precision = precision_score(p.label_ids, preds, average='weighted')
+    recall = recall_score(p.label_ids, preds, average='weighted')
+    f1 = f1_score(p.label_ids, preds, average='weighted')
     acc = accuracy_score(p.label_ids, preds)
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
@@ -164,9 +164,9 @@ predictions = trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
 # Calculate metrics
-precision = precision_score(labels[train_size:], preds)
-recall = recall_score(labels[train_size:], preds)
-f1 = f1_score(labels[train_size:], preds)
+precision = precision_score(labels[train_size:], preds, average='weighted')
+recall = recall_score(labels[train_size:], preds, average='weighted')
+f1 = f1_score(labels[train_size:], preds, average='weighted')
 accuracy = accuracy_score(labels[train_size:], preds)
 
 print(f"Precision: {precision:.4f}, Recall: {
