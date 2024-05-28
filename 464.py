@@ -18,7 +18,6 @@ nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('stopwords')
 
-# Initialize stemmer and lemmatizer
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
 
@@ -30,8 +29,6 @@ def preprocess_text(text, language='english'):
     ))) for token in tokens if token.isalpha() and token not in stop_words]
     return tokens
 
-# Load and sample datasets
-
 
 def load_and_sample_dataset(dataset_name, split, sample_size):
     dataset = load_dataset(dataset_name, split=split)
@@ -41,7 +38,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 200  # Reduced sample size
+sample_size = 200
 
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
@@ -57,7 +54,6 @@ processed_data_2 = [' '.join(preprocess_text(
 processed_data_3 = [' '.join(preprocess_text(
     entry['movie'], language='turkish')) for entry in dataset_3]
 
-# Tokenize and pad sequences
 tokenizer = Tokenizer(num_words=5000)
 tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
 
@@ -65,12 +61,10 @@ sequences_1 = tokenizer.texts_to_sequences(processed_data_1)
 sequences_2 = tokenizer.texts_to_sequences(processed_data_2)
 sequences_3 = tokenizer.texts_to_sequences(processed_data_3)
 
-max_seq_length = 100  # Reduced max sequence length
+max_seq_length = 100
 data_1 = pad_sequences(sequences_1, maxlen=max_seq_length)
 data_2 = pad_sequences(sequences_2, maxlen=max_seq_length)
 data_3 = pad_sequences(sequences_3, maxlen=max_seq_length)
-
-# Simplified model
 
 
 def create_model(input_length):
@@ -93,7 +87,6 @@ labels_1 = np.array([i % 2 for i in range(len(data_1))])
 labels_2 = np.array([i % 2 for i in range(len(data_2))])
 labels_3 = np.array([i % 2 for i in range(len(data_3))])
 
-# Train with fewer epochs and larger batch size
 early_stopping = tf.keras.callbacks.EarlyStopping(
     monitor='val_loss', patience=1, restore_best_weights=True)
 
