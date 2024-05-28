@@ -1,18 +1,17 @@
 import numpy as np
-import tensorflow as tf
+import torch
 from datasets import load_dataset
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
-from tensorflow.keras.regularizers import l2
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments, TrainerCallback
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-import matplotlib.pyplot as plt
-import nltk
+from transformers import DataCollatorWithPadding
+from torch.utils.data import DataLoader, Subset, random_split
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
+import nltk
+import matplotlib.pyplot as plt
 
+# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -27,7 +26,7 @@ def preprocess_text(text, language='english'):
     stop_words = set(stopwords.words(language))
     tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
     ))) for token in tokens if token.isalpha() and token not in stop_words]
-    return tokens
+    return ' '.join(tokens)
 
 
 def load_and_sample_dataset(dataset_name, split, sample_size):
@@ -38,8 +37,9 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 200
+sample_size = 100
 
+# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -47,105 +47,197 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-processed_data_1 = [' '.join(preprocess_text(entry['input']))
-                    for entry in dataset_1]
-processed_data_2 = [' '.join(preprocess_text(
-    entry['product_name'], language='turkish')) for entry in dataset_2]
-processed_data_3 = [' '.join(preprocess_text(
-    entry['movie'], language='turkish')) for entry in dataset_3]
+# Preprocess datasets
+processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
+processed_data_2 = [preprocess_text(
+    entry['product_name'], language='turkish') for entry in dataset_2]
+processed_data_3 = [preprocess_text(
+    entry['movie'], language='turkish') for entry in dataset_3]
 
-tokenizer = Tokenizer(num_words=5000)
-tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
+texts = processed_data_1 + processed_data_2 + processed_data_3
+labels_1 = np.array([i % 2 for i in range(len(processed_data_1))])
+labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
+labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
+labels = np.concatenate([labels_1, labels_2, labels_3])
 
-sequences_1 = tokenizer.texts_to_sequences(processed_data_1)
-sequences_2 = tokenizer.texts_to_sequences(processed_data_2)
-sequences_3 = tokenizer.texts_to_sequences(processed_data_3)
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-max_seq_length = 100
-data_1 = pad_sequences(sequences_1, maxlen=max_seq_length)
-data_2 = pad_sequences(sequences_2, maxlen=max_seq_length)
-data_3 = pad_sequences(sequences_3, maxlen=max_seq_length)
+encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
 
 
-def create_model(input_length):
-    model = Sequential([
-        Embedding(input_dim=5000, output_dim=32, input_length=input_length),
-        LSTM(64, kernel_regularizer=l2(0.01)),
-        Dropout(0.5),
-        Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01))
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy',
-                  metrics=['accuracy'])
-    return model
+class TextDataset(torch.utils.data.Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx])
+                for key, val in self.encodings.items()}
+        item['labels'] = torch.tensor(self.labels[idx])
+        return item
+
+    def __len__(self):
+        return len(self.labels)
 
 
-model_1 = create_model(max_seq_length)
-model_2 = create_model(max_seq_length)
-model_3 = create_model(max_seq_length)
+dataset = TextDataset(encodings, labels)
 
-labels_1 = np.array([i % 2 for i in range(len(data_1))])
-labels_2 = np.array([i % 2 for i in range(len(data_2))])
-labels_3 = np.array([i % 2 for i in range(len(data_3))])
+train_size = int(0.8 * len(dataset))
+val_size = len(dataset) - train_size
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-early_stopping = tf.keras.callbacks.EarlyStopping(
-    monitor='val_loss', patience=1, restore_best_weights=True)
+train_dataloader = DataLoader(
+    train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
+val_dataloader = DataLoader(
+    val_dataset, batch_size=32, num_workers=4, pin_memory=True)
 
-history_1 = model_1.fit(data_1, labels_1, epochs=3, batch_size=128,
-                        validation_split=0.2, callbacks=[early_stopping])
-history_2 = model_2.fit(data_2, labels_2, epochs=3, batch_size=128,
-                        validation_split=0.2, callbacks=[early_stopping])
-history_3 = model_3.fit(data_3, labels_3, epochs=3, batch_size=128,
-                        validation_split=0.2, callbacks=[early_stopping])
+model = DistilBertForSequenceClassification.from_pretrained(
+    'distilbert-base-uncased')
 
-
-def evaluate_model(model, data, labels):
-    predictions = (model.predict(data) > 0.5).astype("int32")
-    precision = precision_score(labels, predictions)
-    recall = recall_score(labels, predictions)
-    f1 = f1_score(labels, predictions)
-    accuracy = accuracy_score(labels, predictions)
-    return precision, recall, f1, accuracy
-
-
-precision_1, recall_1, f1_1, accuracy_1 = evaluate_model(
-    model_1, data_1, labels_1)
-precision_2, recall_2, f1_2, accuracy_2 = evaluate_model(
-    model_2, data_2, labels_2)
-precision_3, recall_3, f1_3, accuracy_3 = evaluate_model(
-    model_3, data_3, labels_3)
-
-print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
-    precision_1, recall_1, f1_1, accuracy_1))
-print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
-    precision_2, recall_2, f1_2, accuracy_2))
-print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
-    precision_3, recall_3, f1_3, accuracy_3))
+training_args = TrainingArguments(
+    output_dir='./results',
+    num_train_epochs=1,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir='./logs',
+    logging_steps=10,  # More frequent logging
+    eval_strategy='epoch',
+    save_strategy='epoch',
+    save_total_limit=1,
+    load_best_model_at_end=True,
+    learning_rate=5e-4,
+    report_to='none',
+    fp16=True,
+    gradient_accumulation_steps=2
+)
 
 
-def plot_training_history(history, title):
+def compute_metrics(p):
+    preds = np.argmax(p.predictions, axis=1)
+    precision = precision_score(
+        p.label_ids, preds, average='weighted', zero_division=1)
+    recall = recall_score(p.label_ids, preds, average='weighted')
+    f1 = f1_score(p.label_ids, preds, average='weighted')
+    acc = accuracy_score(p.label_ids, preds)
+    return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
+
+# Custom callback to log training loss
+
+
+class LogTrainingLossCallback(TrainerCallback):
+    def __init__(self):
+        super().__init__()
+        self.train_losses = []
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs and 'loss' in logs:
+            self.train_losses.append(logs['loss'])
+
+
+log_callback = LogTrainingLossCallback()
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=val_dataset,
+    compute_metrics=compute_metrics,
+    data_collator=DataCollatorWithPadding(tokenizer),
+    callbacks=[log_callback]
+)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
+
+trainer.train()
+
+trainer.save_model('./results/trained_model')
+
+eval_result = trainer.evaluate()
+print("Evaluation results:", eval_result)
+
+loaded_model = DistilBertForSequenceClassification.from_pretrained(
+    './results/trained_model')
+loaded_model.to(device)
+
+loaded_trainer = Trainer(
+    model=loaded_model,
+    args=training_args,
+    eval_dataset=val_dataset,
+    compute_metrics=compute_metrics,
+    data_collator=DataCollatorWithPadding(tokenizer),
+)
+
+eval_result_loaded = loaded_trainer.evaluate()
+print("Evaluation results from loaded model:", eval_result_loaded)
+
+predictions = loaded_trainer.predict(val_dataset)
+preds = np.argmax(predictions.predictions, axis=1)
+
+val_labels = np.array([labels[idx] for idx in val_dataset.indices])
+precision = precision_score(
+    val_labels, preds, average='weighted', zero_division=1)
+recall = recall_score(val_labels, preds, average='weighted')
+f1 = f1_score(val_labels, preds, average='weighted')
+accuracy = accuracy_score(val_labels, preds)
+
+print(f"Precision: {precision:.4f}, Recall: {
+      recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
+
+
+def plot_training_history(trainer, title, log_callback):
+    metrics = trainer.state.log_history
+    epochs = [entry['epoch'] for entry in metrics if 'epoch' in entry]
+    train_losses = log_callback.train_losses
+    eval_losses = [entry['eval_loss']
+                   for entry in metrics if 'eval_loss' in entry]
+    eval_accuracies = [entry['eval_accuracy']
+                       for entry in metrics if 'eval_accuracy' in entry]
+
+    print("Epochs:", epochs)
+    print("Train Losses:", train_losses)
+    print("Eval Losses:", eval_losses)
+    print("Eval Accuracies:", eval_accuracies)
+
+    # Ensure all lists are of the same length
+    min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
+
+    epochs = epochs[:min_length]
+    train_losses = train_losses[:min_length]
+    eval_losses = eval_losses[:min_length]
+    eval_accuracies = eval_accuracies[:min_length]
+
+    print("Final Train Losses:", train_losses)
+    print("Final Eval Losses:", eval_losses)
+    print("Final Eval Accuracies:", eval_accuracies)
+
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
+    if len(train_losses) > 0:
+        plt.plot(range(len(train_losses)), train_losses, label='Training Loss')
+        plt.legend()
+    if len(eval_losses) > 0:
+        plt.plot(range(len(eval_losses)), eval_losses, label='Validation Loss')
+        plt.legend()
     plt.title('Loss ' + title)
-    plt.xlabel('Epochs')
+    plt.xlabel('Steps')
     plt.ylabel('Loss')
-    plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(history.history['accuracy'], label='Training Accuracy')
-    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    if len(eval_accuracies) > 0:
+        plt.plot(range(len(eval_accuracies)),
+                 eval_accuracies, label='Validation Accuracy')
+        plt.legend()
     plt.title('Accuracy ' + title)
-    plt.xlabel('Epochs')
+    plt.xlabel('Steps')
     plt.ylabel('Accuracy')
-    plt.legend()
 
     plt.show()
 
 
-plot_training_history(history_1, 'Model 1')
-plot_training_history(history_2, 'Model 2')
-plot_training_history(history_3, 'Model 3')
+plot_training_history(trainer, 'DistilBERT Model', log_callback)
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
