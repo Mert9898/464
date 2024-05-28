@@ -27,6 +27,8 @@ def preprocess_text(text, language='english'):
     ))) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
+# Load and sample datasets
+
 
 def load_and_sample_dataset(dataset_name, split, sample_size):
     dataset = load_dataset(dataset_name, split=split)
@@ -37,7 +39,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
 
 
 # Adjust sample sizes dynamically based on dataset availability
-sample_size = 100  # Further reduced sample size for faster processing
+sample_size = 500  # Further reduced sample size
 
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
@@ -64,8 +66,9 @@ labels = np.concatenate([labels_1, labels_2, labels_3])
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
 # Tokenize data with a reduced max length
-encodings = tokenizer(texts, truncation=True, padding=True,
-                      max_length=64)  # Reduced max length
+encodings = tokenizer(texts, truncation=True, padding=True, max_length=128)
+
+# Convert to dataset
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -94,10 +97,10 @@ train_dataset = Subset(dataset, train_indices)
 val_dataset = Subset(dataset, val_indices)
 
 # Use DataLoader for optimized data loading
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True,
-                              num_workers=4, pin_memory=True)  # Increased batch size
-val_dataloader = DataLoader(val_dataset, batch_size=32,
-                            num_workers=4, pin_memory=True)  # Increased batch size
+train_dataloader = DataLoader(
+    train_dataset, batch_size=16, shuffle=True, num_workers=8, pin_memory=True)
+val_dataloader = DataLoader(
+    val_dataset, batch_size=16, num_workers=8, pin_memory=True)
 
 # Initialize model
 model = DistilBertForSequenceClassification.from_pretrained(
@@ -106,22 +109,24 @@ model = DistilBertForSequenceClassification.from_pretrained(
 # Training arguments with increased learning rate and optimized settings
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=1,  # Reduced number of epochs
-    per_device_train_batch_size=32,  # Increased batch size
-    per_device_eval_batch_size=32,  # Increased batch size
+    num_train_epochs=2,  # Reduce number of epochs
+    per_device_train_batch_size=16,  # Adjust batch size
+    per_device_eval_batch_size=16,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
-    logging_steps=500,
+    logging_steps=500,  # Increase logging steps to reduce logging frequency
     eval_strategy='epoch',
     save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
-    learning_rate=5e-4,
-    report_to='none',
-    fp16=True,
-    gradient_accumulation_steps=2  # Reduced gradient accumulation steps
+    learning_rate=5e-4,  # Increase learning rate significantly
+    report_to='none',  # Disable reporting to avoid unnecessary overhead
+    fp16=True,  # Enable mixed precision training
+    gradient_accumulation_steps=4  # Adjust gradient accumulation steps
 )
+
+# Metrics function
 
 
 def compute_metrics(p):
@@ -150,33 +155,12 @@ model.to(device)
 # Train the model
 trainer.train()
 
-# Save the model
-trainer.save_model('./results/trained_model')
-
 # Evaluate the model
 eval_result = trainer.evaluate()
 print("Evaluation results:", eval_result)
 
-# Load the saved model for quick evaluation
-loaded_model = DistilBertForSequenceClassification.from_pretrained(
-    './results/trained_model')
-loaded_model.to(device)
-
-# Initialize new trainer for the loaded model
-loaded_trainer = Trainer(
-    model=loaded_model,
-    args=training_args,
-    eval_dataset=val_dataset,
-    compute_metrics=compute_metrics,
-    data_collator=DataCollatorWithPadding(tokenizer),
-)
-
-# Evaluate the loaded model
-eval_result_loaded = loaded_trainer.evaluate()
-print("Evaluation results from loaded model:", eval_result_loaded)
-
 # Make predictions on the validation set
-predictions = loaded_trainer.predict(val_dataset)
+predictions = trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
 # Calculate metrics
