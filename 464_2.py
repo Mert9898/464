@@ -10,6 +10,7 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
 
+# Download required NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -179,11 +180,15 @@ print("Evaluation results from loaded model:", eval_result_loaded)
 predictions = loaded_trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
+# Ensure consistent length between true labels and predictions
+val_labels = np.array([labels[idx] for idx in val_indices.indices])
+preds = preds[:len(val_labels)]
+
 # Calculate metrics
-precision = precision_score(labels[train_size:], preds, average='weighted')
-recall = recall_score(labels[train_size:], preds, average='weighted')
-f1 = f1_score(labels[train_size:], preds, average='weighted')
-accuracy = accuracy_score(labels[train_size:], preds)
+precision = precision_score(val_labels, preds, average='weighted')
+recall = recall_score(val_labels, preds, average='weighted')
+f1 = f1_score(val_labels, preds, average='weighted')
+accuracy = accuracy_score(val_labels, preds)
 
 print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
