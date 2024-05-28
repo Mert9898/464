@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from datasets import load_dataset
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments, TrainerCallback
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
 from torch.utils.data import DataLoader, Subset, random_split
@@ -102,7 +102,7 @@ training_args = TrainingArguments(
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
-    logging_steps=500,
+    logging_steps=10,  # More frequent logging
     eval_strategy='epoch',
     save_strategy='epoch',
     save_total_limit=1,
@@ -116,12 +116,27 @@ training_args = TrainingArguments(
 
 def compute_metrics(p):
     preds = np.argmax(p.predictions, axis=1)
-    precision = precision_score(p.label_ids, preds, average='weighted')
+    precision = precision_score(
+        p.label_ids, preds, average='weighted', zero_division=1)
     recall = recall_score(p.label_ids, preds, average='weighted')
     f1 = f1_score(p.label_ids, preds, average='weighted')
     acc = accuracy_score(p.label_ids, preds)
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
+# Custom callback to log training loss
+
+
+class LogTrainingLossCallback(TrainerCallback):
+    def __init__(self):
+        super().__init__()
+        self.train_losses = []
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs and 'loss' in logs:
+            self.train_losses.append(logs['loss'])
+
+
+log_callback = LogTrainingLossCallback()
 
 trainer = Trainer(
     model=model,
@@ -130,6 +145,7 @@ trainer = Trainer(
     eval_dataset=val_dataset,
     compute_metrics=compute_metrics,
     data_collator=DataCollatorWithPadding(tokenizer),
+    callbacks=[log_callback]
 )
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -161,7 +177,8 @@ predictions = loaded_trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
 val_labels = np.array([labels[idx] for idx in val_dataset.indices])
-precision = precision_score(val_labels, preds, average='weighted')
+precision = precision_score(
+    val_labels, preds, average='weighted', zero_division=1)
 recall = recall_score(val_labels, preds, average='weighted')
 f1 = f1_score(val_labels, preds, average='weighted')
 accuracy = accuracy_score(val_labels, preds)
@@ -170,38 +187,53 @@ print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
 
 
-def plot_training_history(trainer, title):
+def plot_training_history(trainer, title, log_callback):
     metrics = trainer.state.log_history
     epochs = [entry['epoch'] for entry in metrics if 'epoch' in entry]
-    train_losses = [entry['loss'] for entry in metrics if 'loss' in entry]
+    train_losses = log_callback.train_losses
     eval_losses = [entry['eval_loss']
                    for entry in metrics if 'eval_loss' in entry]
     eval_accuracies = [entry['eval_accuracy']
                        for entry in metrics if 'eval_accuracy' in entry]
 
+    print("Epochs:", epochs)
+    print("Train Losses:", train_losses)
+    print("Eval Losses:", eval_losses)
+    print("Eval Accuracies:", eval_accuracies)
+
+    # Ensure all lists are of the same length
+    min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
+
+    epochs = epochs[:min_length]
+    train_losses = train_losses[:min_length]
+    eval_losses = eval_losses[:min_length]
+    eval_accuracies = eval_accuracies[:min_length]
+
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
-    if len(epochs) > 0 and len(train_losses) > 0:
-        plt.plot(epochs, train_losses, label='Training Loss')
-    if len(epochs) > 0 and len(eval_losses) > 0:
-        plt.plot(epochs, eval_losses, label='Validation Loss')
+    if len(train_losses) > 0:
+        plt.plot(range(len(train_losses)), train_losses, label='Training Loss')
+        plt.legend()
+    if len(eval_losses) > 0:
+        plt.plot(range(len(eval_losses)), eval_losses, label='Validation Loss')
+        plt.legend()
     plt.title('Loss ' + title)
-    plt.xlabel('Epochs')
+    plt.xlabel('Steps')
     plt.ylabel('Loss')
-    plt.legend()
 
     plt.subplot(1, 2, 2)
-    if len(epochs) > 0 and len(eval_accuracies) > 0:
-        plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
+    if len(eval_accuracies) > 0:
+        plt.plot(range(len(eval_accuracies)),
+                 eval_accuracies, label='Validation Accuracy')
+        plt.legend()
     plt.title('Accuracy ' + title)
-    plt.xlabel('Epochs')
+    plt.xlabel('Steps')
     plt.ylabel('Accuracy')
-    plt.legend()
 
     plt.show()
 
 
-plot_training_history(trainer, 'DistilBERT Model')
+plot_training_history(trainer, 'DistilBERT Model', log_callback)
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
