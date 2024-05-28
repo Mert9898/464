@@ -4,12 +4,14 @@ from datasets import load_dataset
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, random_split
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
+import matplotlib.pyplot as plt
 
+# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -37,6 +39,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
 
 sample_size = 100
 
+# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -44,6 +47,7 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
+# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
@@ -58,8 +62,7 @@ labels = np.concatenate([labels_1, labels_2, labels_3])
 
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-encodings = tokenizer(texts, truncation=True, padding=True,
-                      max_length=64)
+encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -81,15 +84,12 @@ dataset = TextDataset(encodings, labels)
 
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
-train_indices, val_indices = torch.utils.data.random_split(
-    range(len(dataset)), [train_size, val_size])
-train_dataset = Subset(dataset, train_indices)
-val_dataset = Subset(dataset, val_indices)
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True,
-                              num_workers=4, pin_memory=True)
-val_dataloader = DataLoader(val_dataset, batch_size=32,
-                            num_workers=4, pin_memory=True)
+train_dataloader = DataLoader(
+    train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
+val_dataloader = DataLoader(
+    val_dataset, batch_size=32, num_workers=4, pin_memory=True)
 
 model = DistilBertForSequenceClassification.from_pretrained(
     'distilbert-base-uncased')
@@ -160,9 +160,7 @@ print("Evaluation results from loaded model:", eval_result_loaded)
 predictions = loaded_trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
-val_labels = np.array([labels[idx] for idx in val_indices.indices])
-preds = preds[:len(val_labels)]
-
+val_labels = np.array([labels[idx] for idx in val_dataset.indices])
 precision = precision_score(val_labels, preds, average='weighted')
 recall = recall_score(val_labels, preds, average='weighted')
 f1 = f1_score(val_labels, preds, average='weighted')
@@ -170,6 +168,40 @@ accuracy = accuracy_score(val_labels, preds)
 
 print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
+
+
+def plot_training_history(trainer, title):
+    metrics = trainer.state.log_history
+    epochs = [entry['epoch'] for entry in metrics if 'epoch' in entry]
+    train_losses = [entry['loss'] for entry in metrics if 'loss' in entry]
+    eval_losses = [entry['eval_loss']
+                   for entry in metrics if 'eval_loss' in entry]
+    eval_accuracies = [entry['eval_accuracy']
+                       for entry in metrics if 'eval_accuracy' in entry]
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    if len(epochs) > 0 and len(train_losses) > 0:
+        plt.plot(epochs, train_losses, label='Training Loss')
+    if len(epochs) > 0 and len(eval_losses) > 0:
+        plt.plot(epochs, eval_losses, label='Validation Loss')
+    plt.title('Loss ' + title)
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    if len(epochs) > 0 and len(eval_accuracies) > 0:
+        plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
+    plt.title('Accuracy ' + title)
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+
+plot_training_history(trainer, 'DistilBERT Model')
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]

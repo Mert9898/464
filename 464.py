@@ -6,7 +6,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from tensorflow.keras.regularizers import l2
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import matplotlib.pyplot as plt
 import nltk
 from nltk.tokenize import word_tokenize
@@ -103,19 +103,49 @@ def evaluate_model(model, data, labels):
     precision = precision_score(labels, predictions)
     recall = recall_score(labels, predictions)
     f1 = f1_score(labels, predictions)
-    return precision, recall, f1
+    accuracy = accuracy_score(labels, predictions)
+    return precision, recall, f1, accuracy
 
 
-precision_1, recall_1, f1_1 = evaluate_model(model_1, data_1, labels_1)
-precision_2, recall_2, f1_2 = evaluate_model(model_2, data_2, labels_2)
-precision_3, recall_3, f1_3 = evaluate_model(model_3, data_3, labels_3)
+precision_1, recall_1, f1_1, accuracy_1 = evaluate_model(
+    model_1, data_1, labels_1)
+precision_2, recall_2, f1_2, accuracy_2 = evaluate_model(
+    model_2, data_2, labels_2)
+precision_3, recall_3, f1_3, accuracy_3 = evaluate_model(
+    model_3, data_3, labels_3)
 
-print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
-    precision_1, recall_1, f1_1))
-print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
-    precision_2, recall_2, f1_2))
-print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
-    precision_3, recall_3, f1_3))
+print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
+    precision_1, recall_1, f1_1, accuracy_1))
+print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
+    precision_2, recall_2, f1_2, accuracy_2))
+print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}, Accuracy: {:.4f}".format(
+    precision_3, recall_3, f1_3, accuracy_3))
+
+
+def plot_training_history(history, title):
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Loss ' + title)
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Accuracy ' + title)
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+
+plot_training_history(history_1, 'Model 1')
+plot_training_history(history_2, 'Model 2')
+plot_training_history(history_3, 'Model 3')
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
