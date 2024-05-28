@@ -10,13 +10,11 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
 
-# Download required NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('stopwords')
 
-# Initialize stemmer and lemmatizer
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
 
@@ -37,8 +35,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-# Adjust sample sizes dynamically based on dataset availability
-sample_size = 100  # Further reduced sample size for faster processing
+sample_size = 100
 
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
@@ -47,26 +44,22 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
 processed_data_3 = [preprocess_text(
     entry['movie'], language='turkish') for entry in dataset_3]
 
-# Concatenate datasets for tokenization
 texts = processed_data_1 + processed_data_2 + processed_data_3
 labels_1 = np.array([i % 2 for i in range(len(processed_data_1))])
 labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
 labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
-# Initialize tokenizer
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-# Tokenize data with a reduced max length
 encodings = tokenizer(texts, truncation=True, padding=True,
-                      max_length=64)  # Reduced max length
+                      max_length=64)
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -86,7 +79,6 @@ class TextDataset(torch.utils.data.Dataset):
 
 dataset = TextDataset(encodings, labels)
 
-# Split into training and validation sets
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
 train_indices, val_indices = torch.utils.data.random_split(
@@ -94,22 +86,19 @@ train_indices, val_indices = torch.utils.data.random_split(
 train_dataset = Subset(dataset, train_indices)
 val_dataset = Subset(dataset, val_indices)
 
-# Use DataLoader for optimized data loading
 train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True,
-                              num_workers=4, pin_memory=True)  # Increased batch size
+                              num_workers=4, pin_memory=True)
 val_dataloader = DataLoader(val_dataset, batch_size=32,
-                            num_workers=4, pin_memory=True)  # Increased batch size
+                            num_workers=4, pin_memory=True)
 
-# Initialize model
 model = DistilBertForSequenceClassification.from_pretrained(
     'distilbert-base-uncased')
 
-# Training arguments with increased learning rate and optimized settings
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=1,  # Reduced number of epochs
-    per_device_train_batch_size=32,  # Increased batch size
-    per_device_eval_batch_size=32,  # Increased batch size
+    num_train_epochs=1,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
@@ -121,7 +110,7 @@ training_args = TrainingArguments(
     learning_rate=5e-4,
     report_to='none',
     fp16=True,
-    gradient_accumulation_steps=2  # Reduced gradient accumulation steps
+    gradient_accumulation_steps=2
 )
 
 
@@ -134,7 +123,6 @@ def compute_metrics(p):
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
 
-# Initialize trainer
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -144,26 +132,20 @@ trainer = Trainer(
     data_collator=DataCollatorWithPadding(tokenizer),
 )
 
-# Ensure GPU is used if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
-# Train the model
 trainer.train()
 
-# Save the model
 trainer.save_model('./results/trained_model')
 
-# Evaluate the model
 eval_result = trainer.evaluate()
 print("Evaluation results:", eval_result)
 
-# Load the saved model for quick evaluation
 loaded_model = DistilBertForSequenceClassification.from_pretrained(
     './results/trained_model')
 loaded_model.to(device)
 
-# Initialize new trainer for the loaded model
 loaded_trainer = Trainer(
     model=loaded_model,
     args=training_args,
@@ -172,19 +154,15 @@ loaded_trainer = Trainer(
     data_collator=DataCollatorWithPadding(tokenizer),
 )
 
-# Evaluate the loaded model
 eval_result_loaded = loaded_trainer.evaluate()
 print("Evaluation results from loaded model:", eval_result_loaded)
 
-# Make predictions on the validation set
 predictions = loaded_trainer.predict(val_dataset)
 preds = np.argmax(predictions.predictions, axis=1)
 
-# Ensure consistent length between true labels and predictions
 val_labels = np.array([labels[idx] for idx in val_indices.indices])
 preds = preds[:len(val_labels)]
 
-# Calculate metrics
 precision = precision_score(val_labels, preds, average='weighted')
 recall = recall_score(val_labels, preds, average='weighted')
 f1 = f1_score(val_labels, preds, average='weighted')
@@ -193,7 +171,6 @@ accuracy = accuracy_score(val_labels, preds)
 print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
 
-# Example entries
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
 example_entry_3 = dataset_3[0]
