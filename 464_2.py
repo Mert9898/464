@@ -4,13 +4,14 @@ from datasets import load_dataset
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, Trainer, TrainingArguments, TrainerCallback
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from transformers import DataCollatorWithPadding
-from torch.utils.data import DataLoader, Subset, random_split
+from torch.utils.data import DataLoader, random_split
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
 
+# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -36,8 +37,9 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 100
+sample_size = 50  # Reduced sample size
 
+# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -45,6 +47,7 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
+# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
@@ -57,6 +60,7 @@ labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
 labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
+# Tokenize the text
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
 
@@ -83,19 +87,19 @@ val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
 train_dataloader = DataLoader(
-    train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
+    train_dataset, batch_size=16, shuffle=True, num_workers=4, pin_memory=True)
 val_dataloader = DataLoader(
-    val_dataset, batch_size=32, num_workers=4, pin_memory=True)
+    val_dataset, batch_size=16, num_workers=4, pin_memory=True)
 
 model = DistilBertForSequenceClassification.from_pretrained(
     'distilbert-base-uncased')
 
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=1,
-    per_device_train_batch_size=32,
-    per_device_eval_batch_size=32,
-    warmup_steps=500,
+    num_train_epochs=3,  # Reduced epochs
+    per_device_train_batch_size=16,  # Reduced batch size
+    per_device_eval_batch_size=16,
+    warmup_steps=200,
     weight_decay=0.01,
     logging_dir='./logs',
     logging_steps=10,
@@ -103,10 +107,10 @@ training_args = TrainingArguments(
     save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
-    learning_rate=5e-4,
+    learning_rate=1e-4,  # Further reduced learning rate
     report_to='none',
     fp16=True,
-    gradient_accumulation_steps=2
+    gradient_accumulation_steps=1  # Reduced gradient accumulation steps
 )
 
 
@@ -124,10 +128,17 @@ class LogTrainingLossCallback(TrainerCallback):
     def __init__(self):
         super().__init__()
         self.train_losses = []
+        self.eval_losses = []
+        self.eval_accuracies = []
 
     def on_log(self, args, state, control, logs=None, **kwargs):
-        if logs and 'loss' in logs:
-            self.train_losses.append(logs['loss'])
+        if logs is not None:
+            if 'loss' in logs:
+                self.train_losses.append(logs['loss'])
+            if 'eval_loss' in logs:
+                self.eval_losses.append(logs['eval_loss'])
+            if 'eval_accuracy' in logs:
+                self.eval_accuracies.append(logs['eval_accuracy'])
 
 
 log_callback = LogTrainingLossCallback()
@@ -182,46 +193,33 @@ print(f"Precision: {precision:.4f}, Recall: {
 
 
 def plot_training_history(trainer, title, log_callback):
-    metrics = trainer.state.log_history
-    epochs = [entry['epoch'] for entry in metrics if 'epoch' in entry]
+    epochs = range(1, len(log_callback.train_losses) + 1)
     train_losses = log_callback.train_losses
-    eval_losses = [entry['eval_loss']
-                   for entry in metrics if 'eval_loss' in entry]
-    eval_accuracies = [entry['eval_accuracy']
-                       for entry in metrics if 'eval_accuracy' in entry]
-
-    print("Epochs:", epochs)
-    print("Train Losses:", train_losses)
-    print("Eval Losses:", eval_losses)
-    print("Eval Accuracies:", eval_accuracies)
+    eval_losses = log_callback.eval_losses
+    eval_accuracies = log_callback.eval_accuracies
 
     min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
 
-    epochs = epochs[:min_length]
+    epochs = list(epochs)[:min_length]
     train_losses = train_losses[:min_length]
     eval_losses = eval_losses[:min_length]
     eval_accuracies = eval_accuracies[:min_length]
 
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
-    if len(train_losses) > 0:
-        plt.plot(range(len(train_losses)), train_losses, label='Training Loss')
-        plt.legend()
-    if len(eval_losses) > 0:
-        plt.plot(range(len(eval_losses)), eval_losses, label='Validation Loss')
-        plt.legend()
+    plt.plot(epochs, train_losses, label='Training Loss')
+    plt.plot(epochs, eval_losses, label='Validation Loss')
     plt.title('Loss ' + title)
-    plt.xlabel('Steps')
+    plt.xlabel('Epochs')
     plt.ylabel('Loss')
+    plt.legend()
 
     plt.subplot(1, 2, 2)
-    if len(eval_accuracies) > 0:
-        plt.plot(range(len(eval_accuracies)),
-                 eval_accuracies, label='Validation Accuracy')
-        plt.legend()
+    plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
     plt.title('Accuracy ' + title)
-    plt.xlabel('Steps')
+    plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
 
     plt.show()
 
