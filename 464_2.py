@@ -59,9 +59,9 @@ dataset_3 = load_and_sample_dataset(
 
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
-    entry['product_name'], language='turkish') for entry in dataset_2]
+    entry['text'], language='turkish') for entry in dataset_2]
 processed_data_3 = [preprocess_text(
-    entry['movie'], language='turkish') for entry in dataset_3]
+    entry['text'], language='turkish') for entry in dataset_3]
 
 texts = processed_data_1 + processed_data_2 + processed_data_3
 labels_1 = np.array([i % 2 for i in range(len(processed_data_1))])
@@ -200,7 +200,7 @@ print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
 
 
-def plot_training_history(trainer, log_callback):
+def plot_training_history(trainer, log_callback, title):
     epochs = range(1, len(log_callback.train_losses) + 1)
     train_losses = log_callback.train_losses
     eval_losses = log_callback.eval_losses
@@ -217,14 +217,14 @@ def plot_training_history(trainer, log_callback):
     plt.subplot(1, 2, 1)
     plt.plot(epochs, train_losses, label='Training Loss')
     plt.plot(epochs, eval_losses, label='Validation Loss')
-    plt.title('Loss')
+    plt.title(f'Loss - {title}')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
 
     plt.subplot(1, 2, 2)
     plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
-    plt.title('Accuracy')
+    plt.title(f'Accuracy - {title}')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend()
@@ -232,7 +232,7 @@ def plot_training_history(trainer, log_callback):
     plt.show()
 
 
-plot_training_history(trainer, log_callback)
+plot_training_history(trainer, log_callback, "General")
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
