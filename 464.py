@@ -10,9 +10,7 @@ from torch.utils.data import DataLoader, Subset, random_split
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
-from tensorflow.keras.regularizers import l2
-import matplotlib.pyplot as plt
+from tensorflow.keras.layers import Embedding, LSTM, Dense
 from sklearn.metrics import precision_score, recall_score, f1_score
 import nltk
 >>>>>>> parent of 48ede3d (Update 464.py)
@@ -55,7 +53,6 @@ dataset_2 = load_dataset(
 dataset_3 = load_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", split='train')
 
-
 processed_data_1 = [' '.join(preprocess_text(entry['input']))
                     for entry in dataset_1]
 processed_data_2 = [' '.join(preprocess_text(
@@ -63,10 +60,8 @@ processed_data_2 = [' '.join(preprocess_text(
 processed_data_3 = [' '.join(preprocess_text(
     entry['movie'], language='turkish')) for entry in dataset_3]
 
-
 tokenizer = Tokenizer(num_words=10000)
 tokenizer.fit_on_texts(processed_data_1 + processed_data_2 + processed_data_3)
-
 sequences_1 = tokenizer.texts_to_sequences(processed_data_1)
 sequences_2 = tokenizer.texts_to_sequences(processed_data_2)
 sequences_3 = tokenizer.texts_to_sequences(processed_data_3)
@@ -81,6 +76,7 @@ data_3 = pad_sequences(sequences_3, maxlen=max_seq_length_3)
 >>>>>>> parent of 48ede3d (Update 464.py)
 
 
+<<<<<<< HEAD
 sample_size = 100
 
 # Load datasets
@@ -107,6 +103,17 @@ labels = np.concatenate([labels_1, labels_2, labels_3])
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
 encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
+=======
+def create_model(input_length):
+    model = Sequential([
+        Embedding(input_dim=10000, output_dim=64, input_length=input_length),
+        LSTM(128),
+        Dense(1, activation='sigmoid')
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[
+                  'accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
+    return model
+>>>>>>> parent of 0df4bda (Update 464.py)
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -179,6 +186,7 @@ def compute_metrics(p):
     acc = accuracy_score(p.label_ids, preds)
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 # Custom callback to log training loss
 
@@ -297,6 +305,8 @@ def plot_training_history(trainer, title, log_callback):
 plot_training_history(trainer, 'DistilBERT Model', log_callback)
 =======
 
+=======
+>>>>>>> parent of 0df4bda (Update 464.py)
 print("Model 1 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
     precision_1, recall_1, f1_1))
 print("Model 2 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
@@ -306,6 +316,7 @@ print("Model 3 - Precision: {:.4f}, Recall: {:.4f}, F1-Score: {:.4f}".format(
 >>>>>>> parent of 48ede3d (Update 464.py)
 
 
+<<<<<<< HEAD
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
 example_entry_3 = dataset_3[0]
@@ -315,14 +326,24 @@ print("Example Entry from Dataset 2:", example_entry_2)
 print("Example Entry from Dataset 3:", example_entry_3)
 <<<<<<< HEAD
 =======
+=======
+info = load_dataset("hkust-nlp/deita-quality-scorer-data")
+print(info)
+>>>>>>> parent of 0df4bda (Update 464.py)
 
+example_entry = dataset_1[0]
+print(example_entry)
 
+print(dataset_1[0])
+print(dataset_2[0])
+print(dataset_3[0])
 print("Length of data_1:", len(data_1))
 print("Length of labels_1:", len(labels_1))
 print("Length of data_2:", len(data_2))
 print("Length of labels_2:", len(labels_2))
 print("Length of data_3:", len(data_3))
 print("Length of labels_3:", len(labels_3))
+<<<<<<< HEAD
 
 
 def plot_history(history, title):
@@ -372,3 +393,5 @@ plot_history(history_1, 'Model 1')
 plot_history(history_2, 'Model 2')
 plot_history(history_3, 'Model 3')
 >>>>>>> parent of 48ede3d (Update 464.py)
+=======
+>>>>>>> parent of 0df4bda (Update 464.py)
