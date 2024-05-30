@@ -11,7 +11,6 @@ from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
 
-# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -37,9 +36,8 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 50  # Reduced sample size
+sample_size = 50
 
-# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -47,7 +45,6 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
@@ -60,7 +57,6 @@ labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
 labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
-# Tokenize the text
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
 
@@ -96,8 +92,8 @@ model = DistilBertForSequenceClassification.from_pretrained(
 
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=3,  # Reduced epochs
-    per_device_train_batch_size=16,  # Reduced batch size
+    num_train_epochs=4,
+    per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
     warmup_steps=200,
     weight_decay=0.01,
@@ -107,10 +103,10 @@ training_args = TrainingArguments(
     save_strategy='epoch',
     save_total_limit=1,
     load_best_model_at_end=True,
-    learning_rate=1e-4,  # Further reduced learning rate
+    learning_rate=1e-4,
     report_to='none',
     fp16=True,
-    gradient_accumulation_steps=1  # Reduced gradient accumulation steps
+    gradient_accumulation_steps=1
 )
 
 
@@ -192,7 +188,7 @@ print(f"Precision: {precision:.4f}, Recall: {
       recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
 
 
-def plot_training_history(trainer, title, log_callback):
+def plot_training_history(trainer, log_callback):
     epochs = range(1, len(log_callback.train_losses) + 1)
     train_losses = log_callback.train_losses
     eval_losses = log_callback.eval_losses
@@ -209,14 +205,14 @@ def plot_training_history(trainer, title, log_callback):
     plt.subplot(1, 2, 1)
     plt.plot(epochs, train_losses, label='Training Loss')
     plt.plot(epochs, eval_losses, label='Validation Loss')
-    plt.title('Loss ' + title)
+    plt.title('Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
 
     plt.subplot(1, 2, 2)
     plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
-    plt.title('Accuracy ' + title)
+    plt.title('Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend()
@@ -224,7 +220,7 @@ def plot_training_history(trainer, title, log_callback):
     plt.show()
 
 
-plot_training_history(trainer, 'DistilBERT Model', log_callback)
+plot_training_history(trainer, log_callback)
 
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
