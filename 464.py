@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, LSTM, Dense, SpatialDropout1D
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.layers import Embedding, LSTM, Dense, SpatialDropout1D, Dropout, BatchNormalization, GRU
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.regularizers import l2
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
@@ -40,7 +41,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 100
+sample_size = 500  # Increased sample size
 
 # Load datasets
 dataset_1 = load_and_sample_dataset(
@@ -81,22 +82,36 @@ padded_sequences = pad_sequences(sequences, maxlen=100)
 X_train, X_test, y_train, y_test = train_test_split(
     padded_sequences, labels, test_size=0.2, random_state=42)
 
-# Define the LSTM model
+# Define the LSTM model with increased regularization and gradient clipping
 model = Sequential()
 model.add(Embedding(vocab_size, 100, input_length=100))
-model.add(SpatialDropout1D(0.2))
-model.add(LSTM(100, dropout=0.2, recurrent_dropout=0.2))
-model.add(Dense(1, activation='sigmoid'))
+model.add(SpatialDropout1D(0.6))  # Increased dropout
+model.add(LSTM(64, return_sequences=True, dropout=0.6,
+          recurrent_dropout=0.6))  # Increased LSTM units
+# Added another LSTM layer
+model.add(LSTM(32, dropout=0.6, recurrent_dropout=0.6))
+model.add(BatchNormalization())
+# L2 regularization
+model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
-model.compile(loss='binary_crossentropy',
-              optimizer='adam', metrics=['accuracy'])
+# Compile the model with Adam optimizer
+model.compile(loss='binary_crossentropy', optimizer=RMSprop(
+    learning_rate=1e-4), metrics=['accuracy'])  # Reduced learning rate
 
-# Train the model
-epochs = 5
-batch_size = 32
+# Increase epochs and adjust batch size
+epochs = 50  # Increased epochs
+batch_size = 32  # Adjusted batch size
 
-history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, validation_split=0.2, callbacks=[
-                    EarlyStopping(monitor='val_loss', patience=3, min_delta=0.0001)])
+# Adding early stopping, model checkpoint, and learning rate scheduler
+early_stopping = EarlyStopping(monitor='val_loss', patience=10,
+                               min_delta=0.0001, restore_best_weights=True)  # Adjusted patience
+model_checkpoint = ModelCheckpoint(
+    'best_model.keras', save_best_only=True, monitor='val_loss', mode='min')
+reduce_lr = ReduceLROnPlateau(
+    monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)  # Learning rate scheduler
+
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
+                    validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
