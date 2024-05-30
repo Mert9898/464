@@ -50,42 +50,95 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
 
 sample_size = 50
 
-datasets = [
-    ("hkust-nlp/deita-quality-scorer-data", 'validation', 'Dataset 1', 'english'),
-    ("turkish-nlp-suite/vitamins-supplements-reviews",
-     'train', 'Dataset 2', 'turkish'),
-    ("turkish-nlp-suite/beyazperde-top-300-movie-reviews",
-     'train', 'Dataset 3', 'turkish')
-]
+dataset_1 = load_and_sample_dataset(
+    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
+dataset_2 = load_and_sample_dataset(
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size)
+dataset_3 = load_and_sample_dataset(
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-all_train_losses = []
-all_eval_losses = []
-all_eval_accuracies = []
+processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
+processed_data_2 = [preprocess_text(
+    entry['text'], language='turkish') for entry in dataset_2]
+processed_data_3 = [preprocess_text(
+    entry['text'], language='turkish') for entry in dataset_3]
+
+texts_1 = processed_data_1
+texts_2 = processed_data_2
+texts_3 = processed_data_3
+
+labels_1 = np.array([i % 2 for i in range(len(processed_data_1))])
+labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
+labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-for dataset_name, split, title, language in datasets:
-    dataset = load_and_sample_dataset(dataset_name, split, sample_size)
-    processed_data = [preprocess_text(
-        entry['text'] if 'text' in entry else entry['input'], language) for entry in dataset]
-    labels = np.array([i % 2 for i in range(len(processed_data))])
-    encodings = tokenizer(processed_data, truncation=True,
-                          padding=True, max_length=64)
+encodings_1 = tokenizer(texts_1, truncation=True, padding=True, max_length=64)
+encodings_2 = tokenizer(texts_2, truncation=True, padding=True, max_length=64)
+encodings_3 = tokenizer(texts_3, truncation=True, padding=True, max_length=64)
 
-    class TextDataset(torch.utils.data.Dataset):
-        def __init__(self, encodings, labels):
-            self.encodings = encodings
-            self.labels = labels
 
-        def __getitem__(self, idx):
-            item = {key: torch.tensor(val[idx])
-                    for key, val in self.encodings.items()}
-            item['labels'] = torch.tensor(self.labels[idx])
-            return item
+class TextDataset(torch.utils.data.Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
 
-        def __len__(self):
-            return len(self.labels)
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx])
+                for key, val in self.encodings.items()}
+        item['labels'] = torch.tensor(self.labels[idx])
+        return item
 
+    def __len__(self):
+        return len(self.labels)
+
+
+def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
+    print(f"Plotting training history for {title}:")
+    print(f"Training losses: {train_losses}")
+    print(f"Evaluation losses: {eval_losses}")
+    print(f"Evaluation accuracies: {eval_accuracies}")
+
+    epochs = range(1, len(train_losses) + 1)
+    min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs[:min_length], train_losses[:min_length],
+             label='Training Loss')
+    plt.plot(epochs[:min_length], eval_losses[:min_length],
+             label='Validation Loss')
+    plt.title(f'Loss - {title}')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs[:min_length], eval_accuracies[:min_length],
+             label='Validation Accuracy')
+    plt.title(f'Accuracy - {title}')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+
+def compute_metrics(p):
+    preds = np.argmax(p.predictions, axis=1)
+    precision = precision_score(p.label_ids, preds, average='weighted')
+    recall = recall_score(p.label_ids, preds, average='weighted')
+    f1 = f1_score(p.label_ids, preds, average='weighted')
+    accuracy = accuracy_score(p.label_ids, preds)
+    return {
+        'precision': precision,
+        'recall': recall,
+        'f1': f1,
+        'accuracy': accuracy,
+    }
+
+
+def train_and_evaluate(encodings, labels, title):
     dataset = TextDataset(encodings, labels)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
@@ -113,15 +166,6 @@ for dataset_name, split, title, language in datasets:
         gradient_accumulation_steps=1
     )
 
-    def compute_metrics(p):
-        preds = np.argmax(p.predictions, axis=1)
-        precision = precision_score(
-            p.label_ids, preds, average='weighted', zero_division=1)
-        recall = recall_score(p.label_ids, preds, average='weighted')
-        f1 = f1_score(p.label_ids, preds, average='weighted')
-        acc = accuracy_score(p.label_ids, preds)
-        return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
-
     class LogTrainingLossCallback(TrainerCallback):
         def __init__(self):
             super().__init__()
@@ -137,6 +181,11 @@ for dataset_name, split, title, language in datasets:
                     self.eval_losses.append(logs['eval_loss'])
                 if 'eval_accuracy' in logs:
                     self.eval_accuracies.append(logs['eval_accuracy'])
+                print(f"Logs: {logs}")
+
+        def on_step_end(self, args, state, control, **kwargs):
+            if state.log_history and 'loss' in state.log_history[-1]:
+                self.train_losses.append(state.log_history[-1]['loss'])
 
     log_callback = LogTrainingLossCallback()
 
@@ -155,63 +204,48 @@ for dataset_name, split, title, language in datasets:
 
     trainer.train()
 
+    trainer.save_model('./results/trained_model')
+
     eval_result = trainer.evaluate()
     print(f"Evaluation results for {title}: {eval_result}")
-
-    all_train_losses.append(log_callback.train_losses)
-    all_eval_losses.append(log_callback.eval_losses)
-    all_eval_accuracies.append(log_callback.eval_accuracies)
-
-    def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
-        epochs = range(1, len(train_losses) + 1)
-
-        plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(epochs, train_losses, label='Training Loss')
-        plt.plot(epochs, eval_losses, label='Validation Loss')
-        plt.title(f'Loss - {title}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-
-        plt.subplot(1, 2, 2)
-        plt.plot(epochs, eval_accuracies, label='Validation Accuracy')
-        plt.title(f'Accuracy - {title}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.legend()
-
-        plt.show()
 
     plot_training_history(log_callback.train_losses,
                           log_callback.eval_losses, log_callback.eval_accuracies, title)
 
+    return log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies
+
+
+train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+    encodings_1, labels_1, 'Dataset 1')
+train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+    encodings_2, labels_2, 'Dataset 2')
+train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+    encodings_3, labels_3, 'Dataset 3')
+
 
 def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies):
-    min_length = min(len(min(all_train_losses, key=len)), len(
-        min(all_eval_losses, key=len)), len(min(all_eval_accuracies, key=len)))
-
+    min_length = min(min(len(l) for l in all_train_losses), min(
+        len(l) for l in all_eval_losses), min(len(l) for l in all_eval_accuracies))
+    epochs = range(1, min_length + 1)
     avg_train_losses = np.mean([losses[:min_length]
                                for losses in all_train_losses], axis=0)
     avg_eval_losses = np.mean([losses[:min_length]
                               for losses in all_eval_losses], axis=0)
-    avg_eval_accuracies = np.mean([acc[:min_length]
-                                  for acc in all_eval_accuracies], axis=0)
-
-    epochs = range(1, min_length + 1)
+    avg_eval_accuracies = np.mean([accs[:min_length]
+                                  for accs in all_eval_accuracies], axis=0)
 
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
     plt.plot(epochs, avg_train_losses, label='Training Loss')
     plt.plot(epochs, avg_eval_losses, label='Validation Loss')
-    plt.title('Average Loss Across Datasets')
+    plt.title('Average Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
 
     plt.subplot(1, 2, 2)
     plt.plot(epochs, avg_eval_accuracies, label='Validation Accuracy')
-    plt.title('Average Accuracy Across Datasets')
+    plt.title('Average Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend()
@@ -219,5 +253,5 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
     plt.show()
 
 
-plot_overall_training_history(
-    all_train_losses, all_eval_losses, all_eval_accuracies)
+plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3], [
+                              eval_losses_1, eval_losses_2, eval_losses_3], [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
