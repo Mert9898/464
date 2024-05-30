@@ -10,6 +10,7 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
+import random
 
 nltk.download('punkt')
 nltk.download('wordnet')
@@ -18,6 +19,17 @@ nltk.download('stopwords')
 
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
+
+
+def set_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+set_seed(42)
 
 
 def preprocess_text(text, language='english'):
