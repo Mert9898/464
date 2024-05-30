@@ -20,6 +20,8 @@ nltk.download('stopwords')
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
 
+sample_size = 50
+
 
 def set_seed(seed):
     np.random.seed(seed)
@@ -48,31 +50,6 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 50
-
-dataset_1 = load_and_sample_dataset(
-    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
-dataset_2 = load_and_sample_dataset(
-    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size)
-dataset_3 = load_and_sample_dataset(
-    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
-
-processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
-processed_data_2 = [preprocess_text(
-    entry['text'], language='turkish') for entry in dataset_2]
-processed_data_3 = [preprocess_text(
-    entry['text'], language='turkish') for entry in dataset_3]
-
-texts = processed_data_1 + processed_data_2 + processed_data_3
-labels_1 = np.array([i % 2 for i in range(len(processed_data_1))])
-labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
-labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
-labels = np.concatenate([labels_1, labels_2, labels_3])
-
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
-
-
 class TextDataset(torch.utils.data.Dataset):
     def __init__(self, encodings, labels):
         self.encodings = encodings
@@ -88,38 +65,88 @@ class TextDataset(torch.utils.data.Dataset):
         return len(self.labels)
 
 
-dataset = TextDataset(encodings, labels)
+def train_and_evaluate(dataset_name, dataset_split, sample_size, language, title):
+    dataset = load_and_sample_dataset(dataset_name, dataset_split, sample_size)
+    processed_data = [preprocess_text(entry['input']) if 'input' in entry else preprocess_text(
+        entry['text'], language=language) for entry in dataset]
+    labels = np.array([i % 2 for i in range(len(processed_data))])
 
-train_size = int(0.8 * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+    encodings = tokenizer(processed_data, truncation=True,
+                          padding=True, max_length=64)
 
-train_dataloader = DataLoader(
-    train_dataset, batch_size=16, shuffle=True, num_workers=4, pin_memory=True)
-val_dataloader = DataLoader(
-    val_dataset, batch_size=16, num_workers=4, pin_memory=True)
+    dataset = TextDataset(encodings, labels)
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-model = DistilBertForSequenceClassification.from_pretrained(
-    'distilbert-base-uncased')
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=16, shuffle=True, num_workers=4, pin_memory=True)
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=16, num_workers=4, pin_memory=True)
 
-training_args = TrainingArguments(
-    output_dir='./results',
-    num_train_epochs=4,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    warmup_steps=200,
-    weight_decay=0.01,
-    logging_dir='./logs',
-    logging_steps=10,
-    eval_strategy='epoch',
-    save_strategy='epoch',
-    save_total_limit=1,
-    load_best_model_at_end=True,
-    learning_rate=1e-4,
-    report_to='none',
-    fp16=True,
-    gradient_accumulation_steps=1
-)
+    model = DistilBertForSequenceClassification.from_pretrained(
+        'distilbert-base-uncased')
+
+    training_args = TrainingArguments(
+        output_dir='./results',
+        num_train_epochs=4,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        warmup_steps=200,
+        weight_decay=0.01,
+        logging_dir='./logs',
+        logging_steps=10,
+        eval_strategy='epoch',
+        save_strategy='epoch',
+        save_total_limit=1,
+        load_best_model_at_end=True,
+        learning_rate=1e-4,
+        report_to='none',
+        fp16=True,
+        gradient_accumulation_steps=1
+    )
+
+    class LogTrainingLossCallback(TrainerCallback):
+        def __init__(self):
+            super().__init__()
+            self.train_losses = []
+            self.eval_losses = []
+            self.eval_accuracies = []
+
+        def on_epoch_end(self, args, state, control, **kwargs):
+            if state.log_history:
+                last_log = state.log_history[-1]
+                if 'loss' in last_log:
+                    self.train_losses.append(last_log['loss'])
+                if 'eval_loss' in last_log:
+                    self.eval_losses.append(last_log['eval_loss'])
+                if 'eval_accuracy' in last_log:
+                    self.eval_accuracies.append(last_log['eval_accuracy'])
+
+    log_callback = LogTrainingLossCallback()
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        compute_metrics=compute_metrics,
+        data_collator=DataCollatorWithPadding(tokenizer),
+        callbacks=[log_callback]
+    )
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+
+    trainer.train()
+    eval_result = trainer.evaluate()
+
+    print(f"Evaluation results for {title}:", eval_result)
+
+    plot_training_history(log_callback, title)
+
+    return log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies
 
 
 def compute_metrics(p):
@@ -132,75 +159,7 @@ def compute_metrics(p):
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
 
-class LogTrainingLossCallback(TrainerCallback):
-    def __init__(self):
-        super().__init__()
-        self.train_losses = []
-        self.eval_losses = []
-        self.eval_accuracies = []
-
-    def on_log(self, args, state, control, logs=None, **kwargs):
-        if logs is not None:
-            if 'loss' in logs:
-                self.train_losses.append(logs['loss'])
-            if 'eval_loss' in logs:
-                self.eval_losses.append(logs['eval_loss'])
-            if 'eval_accuracy' in logs:
-                self.eval_accuracies.append(logs['eval_accuracy'])
-
-
-log_callback = LogTrainingLossCallback()
-
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=val_dataset,
-    compute_metrics=compute_metrics,
-    data_collator=DataCollatorWithPadding(tokenizer),
-    callbacks=[log_callback]
-)
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model.to(device)
-
-trainer.train()
-
-trainer.save_model('./results/trained_model')
-
-eval_result = trainer.evaluate()
-print("Evaluation results:", eval_result)
-
-loaded_model = DistilBertForSequenceClassification.from_pretrained(
-    './results/trained_model')
-loaded_model.to(device)
-
-loaded_trainer = Trainer(
-    model=loaded_model,
-    args=training_args,
-    eval_dataset=val_dataset,
-    compute_metrics=compute_metrics,
-    data_collator=DataCollatorWithPadding(tokenizer),
-)
-
-eval_result_loaded = loaded_trainer.evaluate()
-print("Evaluation results from loaded model:", eval_result_loaded)
-
-predictions = loaded_trainer.predict(val_dataset)
-preds = np.argmax(predictions.predictions, axis=1)
-
-val_labels = np.array([labels[idx] for idx in val_dataset.indices])
-precision = precision_score(
-    val_labels, preds, average='weighted', zero_division=1)
-recall = recall_score(val_labels, preds, average='weighted')
-f1 = f1_score(val_labels, preds, average='weighted')
-accuracy = accuracy_score(val_labels, preds)
-
-print(f"Precision: {precision:.4f}, Recall: {
-      recall:.4f}, F1-Score: {f1:.4f}, Accuracy: {accuracy:.4f}")
-
-
-def plot_training_history(trainer, log_callback, title):
+def plot_training_history(log_callback, title):
     epochs = range(1, len(log_callback.train_losses) + 1)
     train_losses = log_callback.train_losses
     eval_losses = log_callback.eval_losses
@@ -232,12 +191,41 @@ def plot_training_history(trainer, log_callback, title):
     plt.show()
 
 
-plot_training_history(trainer, log_callback, "General")
+train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size, 'english', 'Dataset 1')
 
-example_entry_1 = dataset_1[0]
-example_entry_2 = dataset_2[0]
-example_entry_3 = dataset_3[0]
+train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size, 'turkish', 'Dataset 2')
 
-print("Example Entry from Dataset 1:", example_entry_1)
-print("Example Entry from Dataset 2:", example_entry_2)
-print("Example Entry from Dataset 3:", example_entry_3)
+train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size, 'turkish', 'Dataset 3')
+
+
+def plot_overall_training_history(train_losses_list, eval_losses_list, eval_accuracies_list):
+    epochs = range(1, len(train_losses_list[0]) + 1)
+    avg_train_losses = np.mean(train_losses_list, axis=0)
+    avg_eval_losses = np.mean(eval_losses_list, axis=0)
+    avg_eval_accuracies = np.mean(eval_accuracies_list, axis=0)
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, avg_train_losses, label='Training Loss')
+    plt.plot(epochs, avg_eval_losses, label='Validation Loss')
+    plt.title('Overall Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, avg_eval_accuracies, label='Validation Accuracy')
+    plt.title('Overall Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+
+plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3],
+                              [eval_losses_1, eval_losses_2, eval_losses_3],
+                              [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
