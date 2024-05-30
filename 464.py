@@ -15,7 +15,6 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 from datasets import load_dataset
 
-# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -41,9 +40,8 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 500  # Increased sample size
+sample_size = 500
 
-# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -51,7 +49,6 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
@@ -64,60 +61,49 @@ labels_2 = np.array([i % 2 for i in range(len(processed_data_2))])
 labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
-# Encode labels
 label_encoder = LabelEncoder()
 labels = label_encoder.fit_transform(labels)
 
-# Tokenize the text
 tokenizer = Tokenizer(num_words=5000, lower=True, oov_token='UNK')
 tokenizer.fit_on_texts(texts)
 word_index = tokenizer.word_index
 vocab_size = len(word_index) + 1
 
-# Convert text to sequences
 sequences = tokenizer.texts_to_sequences(texts)
 padded_sequences = pad_sequences(sequences, maxlen=100)
 
-# Split the data
 X_train, X_test, y_train, y_test = train_test_split(
     padded_sequences, labels, test_size=0.2, random_state=42)
 
-# Define the LSTM model with increased regularization and gradient clipping
 model = Sequential()
 model.add(Embedding(vocab_size, 100, input_length=100))
-model.add(SpatialDropout1D(0.6))  # Increased dropout
+model.add(SpatialDropout1D(0.6))
 model.add(LSTM(64, return_sequences=True, dropout=0.6,
-          recurrent_dropout=0.6))  # Increased LSTM units
-# Added another LSTM layer
+          recurrent_dropout=0.6))
+
 model.add(LSTM(32, dropout=0.6, recurrent_dropout=0.6))
 model.add(BatchNormalization())
-# L2 regularization
+
 model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
-# Compile the model with Adam optimizer
 model.compile(loss='binary_crossentropy', optimizer=RMSprop(
-    learning_rate=1e-4), metrics=['accuracy'])  # Reduced learning rate
+    learning_rate=1e-4), metrics=['accuracy'])
 
-# Increase epochs and adjust batch size
-epochs = 50  # Increased epochs
-batch_size = 32  # Adjusted batch size
+epochs = 50
+batch_size = 32
 
-# Adding early stopping, model checkpoint, and learning rate scheduler
 early_stopping = EarlyStopping(monitor='val_loss', patience=10,
-                               min_delta=0.0001, restore_best_weights=True)  # Adjusted patience
+                               min_delta=0.0001, restore_best_weights=True)
 model_checkpoint = ModelCheckpoint(
     'best_model.keras', save_best_only=True, monitor='val_loss', mode='min')
 reduce_lr = ReduceLROnPlateau(
-    monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)  # Learning rate scheduler
+    monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
 
 history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
                     validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
 
-# Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
 print(f'Loss: {loss}, Accuracy: {accuracy}')
-
-# Plotting training history
 
 
 def plot_training_history(history):
@@ -143,7 +129,6 @@ def plot_training_history(history):
 
 plot_training_history(history)
 
-# Example entries
 example_entry_1 = dataset_1[0]
 example_entry_2 = dataset_2[0]
 example_entry_3 = dataset_3[0]

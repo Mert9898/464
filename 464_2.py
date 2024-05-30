@@ -11,7 +11,6 @@ from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
 
-# Download NLTK data
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -39,7 +38,6 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
 
 sample_size = 100
 
-# Load datasets
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
 dataset_2 = load_and_sample_dataset(
@@ -47,7 +45,6 @@ dataset_2 = load_and_sample_dataset(
 dataset_3 = load_and_sample_dataset(
     "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
-# Preprocess datasets
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
     entry['product_name'], language='turkish') for entry in dataset_2]
@@ -101,7 +98,7 @@ training_args = TrainingArguments(
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
-    logging_steps=10,  # More frequent logging
+    logging_steps=10,
     eval_strategy='epoch',
     save_strategy='epoch',
     save_total_limit=1,
@@ -121,8 +118,6 @@ def compute_metrics(p):
     f1 = f1_score(p.label_ids, preds, average='weighted')
     acc = accuracy_score(p.label_ids, preds)
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
-
-# Custom callback to log training loss
 
 
 class LogTrainingLossCallback(TrainerCallback):
@@ -200,7 +195,6 @@ def plot_training_history(trainer, title, log_callback):
     print("Eval Losses:", eval_losses)
     print("Eval Accuracies:", eval_accuracies)
 
-    # Ensure all lists are of the same length
     min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
 
     epochs = epochs[:min_length]
