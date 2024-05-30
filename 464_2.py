@@ -61,7 +61,6 @@ labels_3 = np.array([i % 2 for i in range(len(processed_data_3))])
 labels = np.concatenate([labels_1, labels_2, labels_3])
 
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-
 encodings = tokenizer(texts, truncation=True, padding=True, max_length=64)
 
 
