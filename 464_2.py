@@ -37,20 +37,26 @@ def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
     tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
-    ))) for token in tokens if token.isalpha() and token not in stop_words]
+    ))) for token in tokens if token is not None and token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
-def load_dataset_full(dataset_name, split):
-    return load_dataset(dataset_name, split=split)
+def load_and_sample_dataset(dataset_name, split, sample_size):
+    dataset = load_dataset(dataset_name, split=split)
+    actual_sample_size = min(len(dataset), sample_size)
+    indices = np.random.choice(len(dataset), actual_sample_size, replace=False)
+    dataset = dataset.select(indices)
+    return dataset
 
 
-dataset_1 = load_dataset_full(
-    "hkust-nlp/deita-quality-scorer-data", 'validation')
-dataset_2 = load_dataset_full(
-    "turkish-nlp-suite/vitamins-supplements-reviews", 'train')
-dataset_3 = load_dataset_full(
-    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train')
+sample_size = 250
+
+dataset_1 = load_and_sample_dataset(
+    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
+dataset_2 = load_and_sample_dataset(
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size)
+dataset_3 = load_and_sample_dataset(
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
 
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
