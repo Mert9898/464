@@ -54,7 +54,6 @@ all_labels = []
 histories = {}
 
 for dataset_name, dataset in datasets.items():
-
     print(f"{dataset_name} first entry:", dataset[0])
 
     if dataset_name == "Dataset 1":
@@ -74,7 +73,7 @@ for dataset_name, dataset in datasets.items():
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform(labels)
 
-    tokenizer = Tokenizer(num_words=5000, lower=True, oov_token='UNK')
+    tokenizer = Tokenizer(num_words=10000, lower=True, oov_token='UNK')
     tokenizer.fit_on_texts(processed_data)
     word_index = tokenizer.word_index
     vocab_size = len(word_index) + 1
@@ -87,10 +86,10 @@ for dataset_name, dataset in datasets.items():
 
     model = Sequential()
     model.add(Embedding(vocab_size, 100, input_length=100))
-    model.add(SpatialDropout1D(0.6))
+    model.add(SpatialDropout1D(0.5))
     model.add(LSTM(64, return_sequences=True,
-              dropout=0.6, recurrent_dropout=0.6))
-    model.add(LSTM(32, dropout=0.6, recurrent_dropout=0.6))
+              dropout=0.4, recurrent_dropout=0.4))
+    model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
     model.add(BatchNormalization())
     model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
@@ -98,7 +97,7 @@ for dataset_name, dataset in datasets.items():
         learning_rate=1e-4), metrics=['accuracy'])
 
     epochs = 50
-    batch_size = 32
+    batch_size = 16
 
     early_stopping = EarlyStopping(
         monitor='val_loss', patience=10, min_delta=0.0001, restore_best_weights=True)
@@ -143,7 +142,7 @@ plot_training_history(histories)
 label_encoder = LabelEncoder()
 all_labels = label_encoder.fit_transform(all_labels)
 
-tokenizer = Tokenizer(num_words=5000, lower=True, oov_token='UNK')
+tokenizer = Tokenizer(num_words=10000, lower=True, oov_token='UNK')
 tokenizer.fit_on_texts(all_texts)
 word_index = tokenizer.word_index
 vocab_size = len(word_index) + 1
@@ -156,9 +155,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 model = Sequential()
 model.add(Embedding(vocab_size, 100, input_length=100))
-model.add(SpatialDropout1D(0.6))
-model.add(LSTM(64, return_sequences=True, dropout=0.6, recurrent_dropout=0.6))
-model.add(LSTM(32, dropout=0.6, recurrent_dropout=0.6))
+model.add(SpatialDropout1D(0.5))
+model.add(LSTM(64, return_sequences=True, dropout=0.4, recurrent_dropout=0.4))
+model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
 model.add(BatchNormalization())
 model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
