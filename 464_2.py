@@ -330,7 +330,6 @@ def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
     return all_preds
 
 
-# Example of using the load_model_and_infer function
 new_texts = ["This is a new text to classify.",
              "Another text for classification."]
 predictions = load_model_and_infer(

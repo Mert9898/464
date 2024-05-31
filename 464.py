@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Embedding, LSTM, Dense, SpatialDropout1D, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import RMSprop
@@ -14,6 +14,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 from datasets import load_dataset
+import os
 
 nltk.download('punkt')
 nltk.download('wordnet')
@@ -84,35 +85,40 @@ for dataset_name, dataset in datasets.items():
     X_train, X_test, y_train, y_test = train_test_split(
         padded_sequences, labels, test_size=0.2, random_state=42)
 
-    model = Sequential()
-    model.add(Embedding(vocab_size, 100, input_length=100))
-    model.add(SpatialDropout1D(0.5))
-    model.add(LSTM(64, return_sequences=True,
-              dropout=0.4, recurrent_dropout=0.4))
-    model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
-    model.add(BatchNormalization())
-    model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
+    model_path = 'best_model_' + dataset_name + '.keras'
+    if os.path.exists(model_path):
+        model = load_model(model_path)
+        print(f'Loaded pre-trained model for {dataset_name}')
+    else:
+        model = Sequential()
+        model.add(Embedding(vocab_size, 100, input_length=100))
+        model.add(SpatialDropout1D(0.5))
+        model.add(LSTM(64, return_sequences=True,
+                  dropout=0.4, recurrent_dropout=0.4))
+        model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
+        model.add(BatchNormalization())
+        model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
-    model.compile(loss='binary_crossentropy', optimizer=RMSprop(
-        learning_rate=1e-4), metrics=['accuracy'])
+        model.compile(loss='binary_crossentropy', optimizer=RMSprop(
+            learning_rate=1e-4), metrics=['accuracy'])
 
-    epochs = 50
-    batch_size = 16
+        epochs = 50
+        batch_size = 16
 
-    early_stopping = EarlyStopping(
-        monitor='val_loss', patience=10, min_delta=0.0001, restore_best_weights=True)
-    model_checkpoint = ModelCheckpoint(
-        'best_model_' + dataset_name + '.keras', save_best_only=True, monitor='val_loss', mode='min')
-    reduce_lr = ReduceLROnPlateau(
-        monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
+        early_stopping = EarlyStopping(
+            monitor='val_loss', patience=10, min_delta=0.0001, restore_best_weights=True)
+        model_checkpoint = ModelCheckpoint(
+            model_path, save_best_only=True, monitor='val_loss', mode='min')
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
 
-    history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
-                        validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
+                            validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
 
-    histories[dataset_name] = history
+        histories[dataset_name] = history
 
-    loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
-    print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
+        loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
+        print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
 
 
 def plot_training_history(histories):
@@ -153,43 +159,76 @@ padded_sequences = pad_sequences(sequences, maxlen=100)
 X_train, X_test, y_train, y_test = train_test_split(
     padded_sequences, all_labels, test_size=0.2, random_state=42)
 
-model = Sequential()
-model.add(Embedding(vocab_size, 100, input_length=100))
-model.add(SpatialDropout1D(0.5))
-model.add(LSTM(64, return_sequences=True, dropout=0.4, recurrent_dropout=0.4))
-model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
-model.add(BatchNormalization())
-model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
+model_path_general = 'best_model_general.keras'
+if os.path.exists(model_path_general):
+    model = load_model(model_path_general)
+    print('Loaded pre-trained general model')
+else:
+    model = Sequential()
+    model.add(Embedding(vocab_size, 100, input_length=100))
+    model.add(SpatialDropout1D(0.5))
+    model.add(LSTM(64, return_sequences=True,
+              dropout=0.4, recurrent_dropout=0.4))
+    model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
+    model.add(BatchNormalization())
+    model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
-model.compile(loss='binary_crossentropy', optimizer=RMSprop(
-    learning_rate=1e-4), metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=RMSprop(
+        learning_rate=1e-4), metrics=['accuracy'])
 
-history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
-                    validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
+    model_checkpoint_general = ModelCheckpoint(
+        model_path_general, save_best_only=True, monitor='val_loss', mode='min')
 
-loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
-print(f'General - Loss: {loss}, Accuracy: {accuracy}')
+    history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
+                        validation_split=0.3, callbacks=[early_stopping, model_checkpoint_general, reduce_lr])
+
+    loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
+    print(f'General - Loss: {loss}, Accuracy: {accuracy}')
+
+    def plot_general_training_history(history):
+        plt.figure(figsize=(12, 4))
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Training Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title('Loss - General')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['accuracy'], label='Training Accuracy')
+        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Accuracy - General')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+
+        plt.show()
+
+    plot_general_training_history(history)
 
 
-def plot_general_training_history(history):
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Loss - General')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
+def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='english'):
+    def preprocess_text(text, language='english'):
+        tokens = word_tokenize(text)
+        stop_words = set(stopwords.words(language))
+        tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
+        ))) for token in tokens if token.isalpha() and token not in stop_words]
+        return ' '.join(tokens)
 
-    plt.subplot(1, 2, 2)
-    plt.plot(history.history['accuracy'], label='Training Accuracy')
-    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy - General')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend()
+    processed_texts = [preprocess_text(
+        text, language=language) for text in new_texts]
+    sequences = tokenizer.texts_to_sequences(processed_texts)
+    padded_sequences = pad_sequences(sequences, maxlen=100)
 
-    plt.show()
+    model = load_model(model_path)
+    predictions = model.predict(padded_sequences)
+    return (predictions > 0.5).astype(int)
 
 
-plot_general_training_history(history)
+new_texts = ["This is a new text to classify.",
+             "Another text for classification."]
+tokenizer.fit_on_texts(all_texts)
+predictions = load_model_and_infer_lstm(
+    model_path_general, tokenizer, new_texts, language='english')
+print(f"Predictions: {predictions}")
