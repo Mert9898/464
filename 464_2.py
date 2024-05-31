@@ -149,9 +149,9 @@ def train_and_evaluate(encodings, labels, title):
 
     training_args = TrainingArguments(
         output_dir='./results',
-        num_train_epochs=4,
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
+        num_train_epochs=5,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
         warmup_steps=200,
         weight_decay=0.01,
         logging_dir='./logs',
@@ -160,7 +160,7 @@ def train_and_evaluate(encodings, labels, title):
         save_strategy='epoch',
         save_total_limit=1,
         load_best_model_at_end=True,
-        learning_rate=1e-4,
+        learning_rate=5e-5,
         report_to='none',
         fp16=True,
         gradient_accumulation_steps=1
