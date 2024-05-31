@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
 import random
+import os
 
 nltk.download('punkt')
 nltk.download('wordnet')
@@ -215,12 +216,16 @@ def train_and_evaluate(encodings, labels, title):
     return log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies
 
 
-train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
-    encodings_1, labels_1, 'Dataset 1')
-train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
-    encodings_2, labels_2, 'Dataset 2')
-train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
-    encodings_3, labels_3, 'Dataset 3')
+if not os.path.exists('./results/trained_model'):
+    print("Training the model as it doesn't exist.")
+    train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+        encodings_1, labels_1, 'Dataset 1')
+    train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+        encodings_2, labels_2, 'Dataset 2')
+    train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+        encodings_3, labels_3, 'Dataset 3')
+else:
+    print("Loading the previously trained model.")
 
 
 def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies):
@@ -253,6 +258,12 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
     plt.show()
 
 
+# Assuming the training was done and now we only plot
+if os.path.exists('./results/trained_model'):
+    train_losses_1, eval_losses_1, eval_accuracies_1 = [], [], []
+    train_losses_2, eval_losses_2, eval_accuracies_2 = [], [], []
+    train_losses_3, eval_losses_3, eval_accuracies_3 = [], [], []
+
 plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3], [
     eval_losses_1, eval_losses_2, eval_losses_3], [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
 
@@ -260,6 +271,9 @@ plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3], 
 
 
 def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
+    # Define the device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # Preprocess and tokenize new texts
     processed_texts = [preprocess_text(
         text, language=language) for text in new_texts]
