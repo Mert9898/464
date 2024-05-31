@@ -143,8 +143,6 @@ def plot_training_history(histories):
         plt.show()
 
 
-plot_training_history(histories)
-
 label_encoder = LabelEncoder()
 all_labels = label_encoder.fit_transform(all_labels)
 
@@ -181,6 +179,8 @@ else:
 
     history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
                         validation_split=0.3, callbacks=[early_stopping, model_checkpoint_general, reduce_lr])
+
+    histories["General"] = history
 
     loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
     print(f'General - Loss: {loss}, Accuracy: {accuracy}')
