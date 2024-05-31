@@ -36,27 +36,21 @@ set_seed(42)
 def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
-    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
-                                                )) for token in tokens if token.isalpha() and token not in stop_words]
+    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
+    ))) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
-def load_and_sample_dataset(dataset_name, split, sample_size):
-    dataset = load_dataset(dataset_name, split=split)
-    actual_sample_size = min(len(dataset), sample_size)
-    indices = np.random.choice(len(dataset), actual_sample_size, replace=False)
-    dataset = dataset.select(indices)
-    return dataset
+def load_dataset_full(dataset_name, split):
+    return load_dataset(dataset_name, split=split)
 
 
-sample_size = 500
-
-dataset_1 = load_and_sample_dataset(
-    "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
-dataset_2 = load_and_sample_dataset(
-    "turkish-nlp-suite/vitamins-supplements-reviews", 'train', sample_size)
-dataset_3 = load_and_sample_dataset(
-    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train', sample_size)
+dataset_1 = load_dataset_full(
+    "hkust-nlp/deita-quality-scorer-data", 'validation')
+dataset_2 = load_dataset_full(
+    "turkish-nlp-suite/vitamins-supplements-reviews", 'train')
+dataset_3 = load_dataset_full(
+    "turkish-nlp-suite/beyazperde-top-300-movie-reviews", 'train')
 
 processed_data_1 = [preprocess_text(entry['input']) for entry in dataset_1]
 processed_data_2 = [preprocess_text(
@@ -206,6 +200,10 @@ def train_and_evaluate(encodings, labels, title):
     trainer.train()
 
     trainer.save_model('./results/trained_model')
+    np.savez('./results/training_metrics.npz',
+             train_losses_1=log_callback.train_losses, eval_losses_1=log_callback.eval_losses, eval_accuracies_1=log_callback.eval_accuracies,
+             train_losses_2=[], eval_losses_2=[], eval_accuracies_2=[],
+             train_losses_3=[], eval_losses_3=[], eval_accuracies_3=[])
 
     eval_result = trainer.evaluate()
     print(f"Evaluation results for {title}: {eval_result}")
@@ -214,18 +212,6 @@ def train_and_evaluate(encodings, labels, title):
                           log_callback.eval_losses, log_callback.eval_accuracies, title)
 
     return log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies
-
-
-if not os.path.exists('./results/trained_model'):
-    print("Training the model as it doesn't exist.")
-    train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
-        encodings_1, labels_1, 'Dataset 1')
-    train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
-        encodings_2, labels_2, 'Dataset 2')
-    train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
-        encodings_3, labels_3, 'Dataset 3')
-else:
-    print("Loading the previously trained model.")
 
 
 def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies):
@@ -258,29 +244,49 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
     plt.show()
 
 
-# Assuming the training was done and now we only plot
-if os.path.exists('./results/trained_model'):
-    train_losses_1, eval_losses_1, eval_accuracies_1 = [], [], []
-    train_losses_2, eval_losses_2, eval_accuracies_2 = [], [], []
-    train_losses_3, eval_losses_3, eval_accuracies_3 = [], [], []
+if not os.path.exists('./results/trained_model'):
+    print("Training the model as it doesn't exist.")
+    train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+        encodings_1, labels_1, 'Dataset 1')
+    train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+        encodings_2, labels_2, 'Dataset 2')
+    train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+        encodings_3, labels_3, 'Dataset 3')
+else:
+    if not os.path.exists('./results/training_metrics.npz'):
+        print("Metrics file not found. Retraining the model.")
+        train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+            encodings_1, labels_1, 'Dataset 1')
+        train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+            encodings_2, labels_2, 'Dataset 2')
+        train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+            encodings_3, labels_3, 'Dataset 3')
+    else:
+        print("Loading the previously trained model and metrics.")
+        metrics = np.load('./results/training_metrics.npz')
+        train_losses_1 = metrics.get('train_losses_1', [])
+        eval_losses_1 = metrics.get('eval_losses_1', [])
+        eval_accuracies_1 = metrics.get('eval_accuracies_1', [])
+        train_losses_2 = metrics.get('train_losses_2', [])
+        eval_losses_2 = metrics.get('eval_losses_2', [])
+        eval_accuracies_2 = metrics.get('eval_accuracies_2', [])
+        train_losses_3 = metrics.get('train_losses_3', [])
+        eval_losses_3 = metrics.get('eval_losses_3', [])
+        eval_accuracies_3 = metrics.get('eval_accuracies_3', [])
 
-plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3], [
-    eval_losses_1, eval_losses_2, eval_losses_3], [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
-
-# Function to load model and perform inference on new data
+plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3],
+                              [eval_losses_1, eval_losses_2, eval_losses_3],
+                              [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
 
 
 def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
-    # Define the device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Preprocess and tokenize new texts
     processed_texts = [preprocess_text(
         text, language=language) for text in new_texts]
     encodings = tokenizer(processed_texts, truncation=True,
                           padding=True, max_length=64)
 
-    # Create a dataset for new texts
     class NewTextDataset(torch.utils.data.Dataset):
         def __init__(self, encodings):
             self.encodings = encodings
@@ -295,15 +301,12 @@ def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
 
     new_dataset = NewTextDataset(encodings)
 
-    # Load the trained model
     model = DistilBertForSequenceClassification.from_pretrained(model_path)
     model.to(device)
     model.eval()
 
-    # Create a DataLoader for the new dataset
     data_loader = DataLoader(new_dataset, batch_size=8)
 
-    # Perform inference
     all_preds = []
     for batch in data_loader:
         input_ids = batch['input_ids'].to(device)
@@ -317,7 +320,6 @@ def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
     return all_preds
 
 
-# Example of using the load_model_and_infer function
 new_texts = ["This is a new text to classify.",
              "Another text for classification."]
 predictions = load_model_and_infer(
