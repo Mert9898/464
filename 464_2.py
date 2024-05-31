@@ -37,7 +37,7 @@ def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
     tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
-    ))) for token in tokens if token is not None and token.isalpha() and token not in stop_words]
+    ))) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
@@ -95,11 +95,6 @@ class TextDataset(torch.utils.data.Dataset):
 
 
 def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
-    print(f"Plotting training history for {title}:")
-    print(f"Training losses: {train_losses}")
-    print(f"Evaluation losses: {eval_losses}")
-    print(f"Evaluation accuracies: {eval_accuracies}")
-
     epochs = range(1, len(train_losses) + 1)
     min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
 
@@ -182,11 +177,6 @@ def train_and_evaluate(encodings, labels, title):
                     self.eval_losses.append(logs['eval_loss'])
                 if 'eval_accuracy' in logs:
                     self.eval_accuracies.append(logs['eval_accuracy'])
-                print(f"Logs: {logs}")
-
-        def on_step_end(self, args, state, control, **kwargs):
-            if state.log_history and 'loss' in state.log_history[-1]:
-                self.train_losses.append(state.log_history[-1]['loss'])
 
     log_callback = LogTrainingLossCallback()
 
@@ -270,15 +260,15 @@ else:
     else:
         print("Loading the previously trained model and metrics.")
         metrics = np.load('./results/training_metrics.npz')
-        train_losses_1 = metrics.get('train_losses_1', [])
-        eval_losses_1 = metrics.get('eval_losses_1', [])
-        eval_accuracies_1 = metrics.get('eval_accuracies_1', [])
-        train_losses_2 = metrics.get('train_losses_2', [])
-        eval_losses_2 = metrics.get('eval_losses_2', [])
-        eval_accuracies_2 = metrics.get('eval_accuracies_2', [])
-        train_losses_3 = metrics.get('train_losses_3', [])
-        eval_losses_3 = metrics.get('eval_losses_3', [])
-        eval_accuracies_3 = metrics.get('eval_accuracies_3', [])
+        train_losses_1 = metrics['train_losses_1'].tolist()
+        eval_losses_1 = metrics['eval_losses_1'].tolist()
+        eval_accuracies_1 = metrics['eval_accuracies_1'].tolist()
+        train_losses_2 = metrics['train_losses_2'].tolist()
+        eval_losses_2 = metrics['eval_losses_2'].tolist()
+        eval_accuracies_2 = metrics['eval_accuracies_2'].tolist()
+        train_losses_3 = metrics['train_losses_3'].tolist()
+        eval_losses_3 = metrics['eval_losses_3'].tolist()
+        eval_accuracies_3 = metrics['eval_accuracies_3'].tolist()
 
 plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3],
                               [eval_losses_1, eval_losses_2, eval_losses_3],
