@@ -119,29 +119,30 @@ for dataset_name, dataset in datasets.items():
 
         loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
         print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
+        print(f'Saving training history for {dataset_name}')
 
-
-def plot_training_history(histories):
-    for dataset_name, history in histories.items():
-        plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(history.history['loss'], label='Training Loss')
-        plt.plot(history.history['val_loss'], label='Validation Loss')
-        plt.title(f'Loss - {dataset_name}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-
-        plt.subplot(1, 2, 2)
-        plt.plot(history.history['accuracy'], label='Training Accuracy')
-        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-        plt.title(f'Accuracy - {dataset_name}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.legend()
-
-        plt.show()
-
+        try:
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            plt.plot(history.history['loss'], label='Training Loss')
+            plt.plot(history.history['val_loss'], label='Validation Loss')
+            plt.title(f'Loss - {dataset_name}')
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.subplot(1, 2, 2)
+            plt.plot(history.history['accuracy'], label='Training Accuracy')
+            plt.plot(history.history['val_accuracy'],
+                     label='Validation Accuracy')
+            plt.title(f'Accuracy - {dataset_name}')
+            plt.xlabel('Epochs')
+            plt.ylabel('Accuracy')
+            plt.legend()
+            plt.savefig(f"{dataset_name}_training_history.png")
+            plt.close()
+            print(f'Training history for {dataset_name} saved.')
+        except Exception as e:
+            print(f'Failed to save training history for {dataset_name}: {e}')
 
 label_encoder = LabelEncoder()
 all_labels = label_encoder.fit_transform(all_labels)
@@ -184,8 +185,9 @@ else:
 
     loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
     print(f'General - Loss: {loss}, Accuracy: {accuracy}')
+    print('Saving general training history')
 
-    def plot_general_training_history(history):
+    try:
         plt.figure(figsize=(12, 4))
         plt.subplot(1, 2, 1)
         plt.plot(history.history['loss'], label='Training Loss')
@@ -194,7 +196,6 @@ else:
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
-
         plt.subplot(1, 2, 2)
         plt.plot(history.history['accuracy'], label='Training Accuracy')
         plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
@@ -202,10 +203,11 @@ else:
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.legend()
-
-        plt.show()
-
-    plot_general_training_history(history)
+        plt.savefig("General_training_history.png")
+        plt.close()
+        print('General training history saved.')
+    except Exception as e:
+        print(f'Failed to save general training history: {e}')
 
 
 def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='english'):
