@@ -35,8 +35,8 @@ set_seed(42)
 def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
-    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
-    ))) for token in tokens if token.isalpha() and token not in stop_words]
+    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
+                                                )) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
@@ -254,4 +254,58 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
 
 
 plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3], [
-                              eval_losses_1, eval_losses_2, eval_losses_3], [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
+    eval_losses_1, eval_losses_2, eval_losses_3], [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
+
+# Function to load model and perform inference on new data
+
+
+def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
+    # Preprocess and tokenize new texts
+    processed_texts = [preprocess_text(
+        text, language=language) for text in new_texts]
+    encodings = tokenizer(processed_texts, truncation=True,
+                          padding=True, max_length=64)
+
+    # Create a dataset for new texts
+    class NewTextDataset(torch.utils.data.Dataset):
+        def __init__(self, encodings):
+            self.encodings = encodings
+
+        def __getitem__(self, idx):
+            item = {key: torch.tensor(val[idx])
+                    for key, val in self.encodings.items()}
+            return item
+
+        def __len__(self):
+            return len(self.encodings['input_ids'])
+
+    new_dataset = NewTextDataset(encodings)
+
+    # Load the trained model
+    model = DistilBertForSequenceClassification.from_pretrained(model_path)
+    model.to(device)
+    model.eval()
+
+    # Create a DataLoader for the new dataset
+    data_loader = DataLoader(new_dataset, batch_size=8)
+
+    # Perform inference
+    all_preds = []
+    for batch in data_loader:
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+        with torch.no_grad():
+            outputs = model(input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
+            preds = torch.argmax(logits, dim=1)
+            all_preds.extend(preds.cpu().numpy())
+
+    return all_preds
+
+
+# Example of using the load_model_and_infer function
+new_texts = ["This is a new text to classify.",
+             "Another text for classification."]
+predictions = load_model_and_infer(
+    './results/trained_model', tokenizer, new_texts, language='english')
+print(f"Predictions: {predictions}")
