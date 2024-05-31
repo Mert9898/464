@@ -10,6 +10,7 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import nltk
 import matplotlib.pyplot as plt
+import seaborn as sns
 import random
 
 nltk.download('punkt')
@@ -93,35 +94,29 @@ class TextDataset(torch.utils.data.Dataset):
         return len(self.labels)
 
 
-def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
-    print(f"Plotting training history for {title}:")
-    print(f"Training losses: {train_losses}")
-    print(f"Evaluation losses: {eval_losses}")
-    print(f"Evaluation accuracies: {eval_accuracies}")
+def plot_training_history(histories):
+    for dataset_name, history in histories.items():
+        plt.figure(figsize=(12, 4))
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Training Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title(f'Loss - {dataset_name}')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
 
-    epochs = range(1, len(train_losses) + 1)
-    min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['accuracy'], label='Training Accuracy')
+        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+        plt.title(f'Accuracy - {dataset_name}')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
 
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs[:min_length], train_losses[:min_length],
-             label='Training Loss')
-    plt.plot(epochs[:min_length], eval_losses[:min_length],
-             label='Validation Loss')
-    plt.title(f'Loss - {title}')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
+        plt.show()
 
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs[:min_length], eval_accuracies[:min_length],
-             label='Validation Accuracy')
-    plt.title(f'Accuracy - {title}')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend()
 
-    plt.show()
+plot_training_history(histories)
 
 
 def compute_metrics(p):
