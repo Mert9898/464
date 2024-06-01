@@ -52,8 +52,6 @@ datasets = {
 all_texts = []
 all_labels = []
 
-histories = {}
-
 for dataset_name, dataset in datasets.items():
     print(f"{dataset_name} first entry:", dataset[0])
 
@@ -70,79 +68,6 @@ for dataset_name, dataset in datasets.items():
 
     all_texts.extend(processed_data)
     all_labels.extend(labels)
-
-    label_encoder = LabelEncoder()
-    labels = label_encoder.fit_transform(labels)
-
-    tokenizer = Tokenizer(num_words=10000, lower=True, oov_token='UNK')
-    tokenizer.fit_on_texts(processed_data)
-    word_index = tokenizer.word_index
-    vocab_size = len(word_index) + 1
-
-    sequences = tokenizer.texts_to_sequences(processed_data)
-    padded_sequences = pad_sequences(sequences, maxlen=100)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        padded_sequences, labels, test_size=0.2, random_state=42)
-
-    model_path = 'best_model_' + dataset_name + '.keras'
-    if os.path.exists(model_path):
-        model = load_model(model_path)
-        print(f'Loaded pre-trained model for {dataset_name}')
-    else:
-        model = Sequential()
-        model.add(Embedding(vocab_size, 100, input_length=100))
-        model.add(SpatialDropout1D(0.5))
-        model.add(LSTM(64, return_sequences=True,
-                  dropout=0.4, recurrent_dropout=0.4))
-        model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
-        model.add(BatchNormalization())
-        model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
-
-        model.compile(loss='binary_crossentropy', optimizer=RMSprop(
-            learning_rate=1e-4), metrics=['accuracy'])
-
-        epochs = 50
-        batch_size = 16
-
-        early_stopping = EarlyStopping(
-            monitor='val_loss', patience=10, min_delta=0.0001, restore_best_weights=True)
-        model_checkpoint = ModelCheckpoint(
-            model_path, save_best_only=True, monitor='val_loss', mode='min')
-        reduce_lr = ReduceLROnPlateau(
-            monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
-
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
-                            validation_split=0.3, callbacks=[early_stopping, model_checkpoint, reduce_lr])
-
-        histories[dataset_name] = history
-
-        loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
-        print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
-        print(f'Saving training history for {dataset_name}')
-
-        try:
-            plt.figure(figsize=(12, 4))
-            plt.subplot(1, 2, 1)
-            plt.plot(history.history['loss'], label='Training Loss')
-            plt.plot(history.history['val_loss'], label='Validation Loss')
-            plt.title(f'Loss - {dataset_name}')
-            plt.xlabel('Epochs')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.subplot(1, 2, 2)
-            plt.plot(history.history['accuracy'], label='Training Accuracy')
-            plt.plot(history.history['val_accuracy'],
-                     label='Validation Accuracy')
-            plt.title(f'Accuracy - {dataset_name}')
-            plt.xlabel('Epochs')
-            plt.ylabel('Accuracy')
-            plt.legend()
-            plt.savefig(f"{dataset_name}_training_history.png")
-            plt.close()
-            print(f'Training history for {dataset_name} saved.')
-        except Exception as e:
-            print(f'Failed to save training history for {dataset_name}: {e}')
 
 label_encoder = LabelEncoder()
 all_labels = label_encoder.fit_transform(all_labels)
@@ -164,7 +89,7 @@ if os.path.exists(model_path_general):
     print('Loaded pre-trained general model')
 else:
     model = Sequential()
-    model.add(Embedding(vocab_size, 100, input_length=100))
+    model.add(Embedding(vocab_size, 100))
     model.add(SpatialDropout1D(0.5))
     model.add(LSTM(64, return_sequences=True,
               dropout=0.4, recurrent_dropout=0.4))
@@ -175,13 +100,15 @@ else:
     model.compile(loss='binary_crossentropy', optimizer=RMSprop(
         learning_rate=1e-4), metrics=['accuracy'])
 
+    early_stopping = EarlyStopping(
+        monitor='val_loss', patience=10, min_delta=0.0001, restore_best_weights=True)
     model_checkpoint_general = ModelCheckpoint(
         model_path_general, save_best_only=True, monitor='val_loss', mode='min')
+    reduce_lr = ReduceLROnPlateau(
+        monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
 
-    history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
-                        validation_split=0.3, callbacks=[early_stopping, model_checkpoint_general, reduce_lr])
-
-    histories["General"] = history
+    history = model.fit(X_train, y_train, epochs=50, batch_size=16, validation_split=0.3, callbacks=[
+                        early_stopping, model_checkpoint_general, reduce_lr])
 
     loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
     print(f'General - Loss: {loss}, Accuracy: {accuracy}')
@@ -230,7 +157,6 @@ def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='englis
 
 new_texts = ["This is a new text to classify.",
              "Another text for classification."]
-tokenizer.fit_on_texts(all_texts)
 predictions = load_model_and_infer_lstm(
     model_path_general, tokenizer, new_texts, language='english')
 print(f"Predictions: {predictions}")
