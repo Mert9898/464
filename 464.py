@@ -28,8 +28,8 @@ lemmatizer = WordNetLemmatizer()
 def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
-    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
-                                                )) for token in tokens if token.isalpha() and token not in stop_words]
+    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
+    ))) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
@@ -119,21 +119,23 @@ for dataset_name, dataset in datasets.items():
 
     try:
         plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(history.history['loss'], label='Training Loss')
-        plt.plot(history.history['val_loss'], label='Validation Loss')
-        plt.title(f'Loss - {dataset_name}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.subplot(1, 2, 2)
-        plt.plot(history.history['accuracy'], label='Training Accuracy')
-        plt.plot(history.history['val_accuracy'],
-                 label='Validation Accuracy')
-        plt.title(f'Accuracy - {dataset_name}')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.legend()
+        if dataset_name in histories:
+            history = histories[dataset_name]
+            plt.subplot(1, 2, 1)
+            plt.plot(history.history['loss'], label='Training Loss')
+            plt.plot(history.history['val_loss'], label='Validation Loss')
+            plt.title(f'Loss - {dataset_name}')
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.subplot(1, 2, 2)
+            plt.plot(history.history['accuracy'], label='Training Accuracy')
+            plt.plot(history.history['val_accuracy'],
+                     label='Validation Accuracy')
+            plt.title(f'Accuracy - {dataset_name}')
+            plt.xlabel('Epochs')
+            plt.ylabel('Accuracy')
+            plt.legend()
         plt.show()
     except Exception as e:
         print(f'Failed to display training history for {dataset_name}: {e}')
@@ -184,8 +186,10 @@ else:
     print(f'General - Loss: {loss}, Accuracy: {accuracy}')
     print('Saving general training history')
 
-    try:
-        plt.figure(figsize=(12, 4))
+try:
+    plt.figure(figsize=(12, 4))
+    if "General" in histories:
+        history = histories["General"]
         plt.subplot(1, 2, 1)
         plt.plot(history.history['loss'], label='Training Loss')
         plt.plot(history.history['val_loss'], label='Validation Loss')
@@ -200,22 +204,22 @@ else:
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.legend()
-        plt.show()
-    except Exception as e:
-        print(f'Failed to display general training history: {e}')
+    plt.show()
+except Exception as e:
+    print(f'Failed to display general training history: {e}')
 
 # Tüm datasetler için ortalama loss ve accuracy grafikleri
 if histories:
     min_len = min([len(history.history['loss'])
-                  for history in histories.values()])
+                  for history in histories.values() if history])
     avg_loss = np.mean([history.history['loss'][:min_len]
-                       for history in histories.values()], axis=0)
+                       for history in histories.values() if history], axis=0)
     avg_val_loss = np.mean([history.history['val_loss'][:min_len]
-                           for history in histories.values()], axis=0)
+                           for history in histories.values() if history], axis=0)
     avg_accuracy = np.mean([history.history['accuracy'][:min_len]
-                           for history in histories.values()], axis=0)
+                           for history in histories.values() if history], axis=0)
     avg_val_accuracy = np.mean([history.history['val_accuracy'][:min_len]
-                               for history in histories.values()], axis=0)
+                               for history in histories.values() if history], axis=0)
 
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
@@ -239,8 +243,8 @@ def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='englis
     def preprocess_text(text, language='english'):
         tokens = word_tokenize(text)
         stop_words = set(stopwords.words(language))
-        tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
-                                                    )) for token in tokens if token.isalpha() and token not in stop_words]
+        tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
+        ))) for token in tokens if token.isalpha() and token not in stop_words]
         return ' '.join(tokens)
 
     processed_texts = [preprocess_text(
