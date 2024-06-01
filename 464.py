@@ -239,7 +239,7 @@ try:
 except Exception as e:
     print(f'Failed to display general training history: {e}')
 
-# Tüm datasetler için ortalama loss ve accuracy grafikleri
+
 if histories:
     min_len = min([len(history['loss']) for history in histories.values()])
     avg_loss = np.mean([history['loss'][:min_len]
