@@ -9,6 +9,7 @@ from tensorflow.keras.layers import Embedding, LSTM, Dense, SpatialDropout1D, Ba
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.keras.regularizers import l2
+from sklearn.metrics import precision_score, recall_score, f1_score
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer, WordNetLemmatizer
@@ -96,7 +97,13 @@ for dataset_name, dataset in datasets.items():
                 'loss': history_data['loss'].tolist(),
                 'val_loss': history_data['val_loss'].tolist(),
                 'accuracy': history_data['accuracy'].tolist(),
-                'val_accuracy': history_data['val_accuracy'].tolist()
+                'val_accuracy': history_data['val_accuracy'].tolist(),
+                'precision': history_data['precision'].tolist(),
+                'val_precision': history_data['val_precision'].tolist(),
+                'recall': history_data['recall'].tolist(),
+                'val_recall': history_data['val_recall'].tolist(),
+                'f1_score': history_data['f1_score'].tolist(),
+                'val_f1_score': history_data['val_f1_score'].tolist(),
             }
             histories[dataset_name] = history
     else:
@@ -121,35 +128,71 @@ for dataset_name, dataset in datasets.items():
 
         history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.3, callbacks=[
                             early_stopping, model_checkpoint, reduce_lr])
+
+        predictions_train = (model.predict(X_train) > 0.5).astype(int)
+        predictions_val = (model.predict(X_test) > 0.5).astype(int)
+
+        train_precision = precision_score(y_train, predictions_train)
+        val_precision = precision_score(y_test, predictions_val)
+        train_recall = recall_score(y_train, predictions_train)
+        val_recall = recall_score(y_test, predictions_val)
+        train_f1 = f1_score(y_train, predictions_train)
+        val_f1 = f1_score(y_test, predictions_val)
+
         histories[dataset_name] = history.history
+        histories[dataset_name].update({
+            'precision': [train_precision] * len(history.history['loss']),
+            'val_precision': [val_precision] * len(history.history['loss']),
+            'recall': [train_recall] * len(history.history['loss']),
+            'val_recall': [val_recall] * len(history.history['loss']),
+            'f1_score': [train_f1] * len(history.history['loss']),
+            'val_f1_score': [val_f1] * len(history.history['loss']),
+        })
 
         np.savez(history_path,
                  loss=history.history['loss'],
                  val_loss=history.history['val_loss'],
                  accuracy=history.history['accuracy'],
-                 val_accuracy=history.history['val_accuracy'])
+                 val_accuracy=history.history['val_accuracy'],
+                 precision=histories[dataset_name]['precision'],
+                 val_precision=histories[dataset_name]['val_precision'],
+                 recall=histories[dataset_name]['recall'],
+                 val_recall=histories[dataset_name]['val_recall'],
+                 f1_score=histories[dataset_name]['f1_score'],
+                 val_f1_score=histories[dataset_name]['val_f1_score'])
 
         loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
         print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
         print(f'Saving training history for {dataset_name}')
 
     try:
-        plt.figure(figsize=(12, 4))
+        plt.figure(figsize=(18, 6))
         if dataset_name in histories:
             history = histories[dataset_name]
-            plt.subplot(1, 2, 1)
+            plt.subplot(1, 3, 1)
             plt.plot(history['loss'], label='Training Loss')
             plt.plot(history['val_loss'], label='Validation Loss')
             plt.title(f'Loss - {dataset_name}')
             plt.xlabel('Epochs')
             plt.ylabel('Loss')
             plt.legend()
-            plt.subplot(1, 2, 2)
+            plt.subplot(1, 3, 2)
             plt.plot(history['accuracy'], label='Training Accuracy')
             plt.plot(history['val_accuracy'], label='Validation Accuracy')
             plt.title(f'Accuracy - {dataset_name}')
             plt.xlabel('Epochs')
             plt.ylabel('Accuracy')
+            plt.legend()
+            plt.subplot(1, 3, 3)
+            plt.plot(history['precision'], label='Training Precision')
+            plt.plot(history['val_precision'], label='Validation Precision')
+            plt.plot(history['recall'], label='Training Recall')
+            plt.plot(history['val_recall'], label='Validation Recall')
+            plt.plot(history['f1_score'], label='Training F1 Score')
+            plt.plot(history['val_f1_score'], label='Validation F1 Score')
+            plt.title(f'Precision, Recall, F1 Score - {dataset_name}')
+            plt.xlabel('Epochs')
+            plt.ylabel('Metrics')
             plt.legend()
         plt.show()
     except Exception as e:
@@ -180,7 +223,13 @@ if os.path.exists(model_path_general):
             'loss': history_data['loss'].tolist(),
             'val_loss': history_data['val_loss'].tolist(),
             'accuracy': history_data['accuracy'].tolist(),
-            'val_accuracy': history_data['val_accuracy'].tolist()
+            'val_accuracy': history_data['val_accuracy'].tolist(),
+            'precision': history_data['precision'].tolist(),
+            'val_precision': history_data['val_precision'].tolist(),
+            'recall': history_data['recall'].tolist(),
+            'val_recall': history_data['val_recall'].tolist(),
+            'f1_score': history_data['f1_score'].tolist(),
+            'val_f1_score': history_data['val_f1_score'].tolist(),
         }
         histories["General"] = history
 else:
@@ -205,40 +254,75 @@ else:
 
     history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.3, callbacks=[
                         early_stopping, model_checkpoint_general, reduce_lr])
+
+    predictions_train = (model.predict(X_train) > 0.5).astype(int)
+    predictions_val = (model.predict(X_test) > 0.5).astype(int)
+
+    train_precision = precision_score(y_train, predictions_train)
+    val_precision = precision_score(y_test, predictions_val)
+    train_recall = recall_score(y_train, predictions_train)
+    val_recall = recall_score(y_test, predictions_val)
+    train_f1 = f1_score(y_train, predictions_train)
+    val_f1 = f1_score(y_test, predictions_val)
+
     histories["General"] = history.history
+    histories["General"].update({
+        'precision': [train_precision] * len(history.history['loss']),
+        'val_precision': [val_precision] * len(history.history['loss']),
+        'recall': [train_recall] * len(history.history['loss']),
+        'val_recall': [val_recall] * len(history.history['loss']),
+        'f1_score': [train_f1] * len(history.history['loss']),
+        'val_f1_score': [val_f1] * len(history.history['loss']),
+    })
 
     np.savez(history_path_general,
              loss=history.history['loss'],
              val_loss=history.history['val_loss'],
              accuracy=history.history['accuracy'],
-             val_accuracy=history.history['val_accuracy'])
+             val_accuracy=history.history['val_accuracy'],
+             precision=histories["General"]['precision'],
+             val_precision=histories["General"]['val_precision'],
+             recall=histories["General"]['recall'],
+             val_recall=histories["General"]['val_recall'],
+             f1_score=histories["General"]['f1_score'],
+             val_f1_score=histories["General"]['val_f1_score'])
 
     loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
     print(f'General - Loss: {loss}, Accuracy: {accuracy}')
     print('Saving general training history')
 
 try:
-    plt.figure(figsize=(12, 4))
+    plt.figure(figsize=(18, 6))
     if "General" in histories:
         history = histories["General"]
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.plot(history['loss'], label='Training Loss')
         plt.plot(history['val_loss'], label='Validation Loss')
         plt.title('Loss - General')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 2)
         plt.plot(history['accuracy'], label='Training Accuracy')
         plt.plot(history['val_accuracy'], label='Validation Accuracy')
         plt.title('Accuracy - General')
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.legend()
+        plt.subplot(1, 3, 3)
+        plt.plot(history['precision'], label='Training Precision')
+        plt.plot(history['val_precision'], label='Validation Precision')
+        plt.plot(history['recall'], label='Training Recall')
+        plt.plot(history['val_recall'], label='Validation Recall')
+        plt.plot(history['f1_score'], label='Training F1 Score')
+        plt.plot(history['val_f1_score'], label='Validation F1 Score')
+        plt.title('Precision, Recall, F1 Score - General')
+        plt.xlabel('Epochs')
+        plt.ylabel('Metrics')
+        plt.legend()
     plt.show()
 except Exception as e:
     print(f'Failed to display general training history: {e}')
-
 
 if histories:
     min_len = min([len(history['loss']) for history in histories.values()])
@@ -250,21 +334,44 @@ if histories:
                            for history in histories.values()], axis=0)
     avg_val_accuracy = np.mean(
         [history['val_accuracy'][:min_len] for history in histories.values()], axis=0)
+    avg_precision = np.mean([history['precision'][:min_len]
+                            for history in histories.values()], axis=0)
+    avg_val_precision = np.mean([history['val_precision'][:min_len]
+                                for history in histories.values()], axis=0)
+    avg_recall = np.mean([history['recall'][:min_len]
+                         for history in histories.values()], axis=0)
+    avg_val_recall = np.mean([history['val_recall'][:min_len]
+                             for history in histories.values()], axis=0)
+    avg_f1_score = np.mean([history['f1_score'][:min_len]
+                           for history in histories.values()], axis=0)
+    avg_val_f1_score = np.mean([history['val_f1_score'][:min_len]
+                               for history in histories.values()], axis=0)
 
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
+    plt.figure(figsize=(18, 6))
+    plt.subplot(1, 3, 1)
     plt.plot(avg_loss, label='Avg Training Loss')
     plt.plot(avg_val_loss, label='Avg Validation Loss')
     plt.title('Average Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.plot(avg_accuracy, label='Avg Training Accuracy')
     plt.plot(avg_val_accuracy, label='Avg Validation Accuracy')
     plt.title('Average Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
+    plt.subplot(1, 3, 3)
+    plt.plot(avg_precision, label='Avg Training Precision')
+    plt.plot(avg_val_precision, label='Avg Validation Precision')
+    plt.plot(avg_recall, label='Avg Training Recall')
+    plt.plot(avg_val_recall, label='Avg Validation Recall')
+    plt.plot(avg_f1_score, label='Avg Training F1 Score')
+    plt.plot(avg_val_f1_score, label='Avg Validation F1 Score')
+    plt.title('Average Precision, Recall, F1 Score')
+    plt.xlabel('Epochs')
+    plt.ylabel('Metrics')
     plt.legend()
     plt.show()
 
