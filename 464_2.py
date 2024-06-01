@@ -94,12 +94,13 @@ class TextDataset(torch.utils.data.Dataset):
         return len(self.labels)
 
 
-def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
+def plot_training_history(train_losses, eval_losses, eval_accuracies, eval_f1s, eval_precisions, eval_recalls, title):
     epochs = range(1, len(train_losses) + 1)
-    min_length = min(len(train_losses), len(eval_losses), len(eval_accuracies))
+    min_length = min(len(train_losses), len(eval_losses), len(
+        eval_accuracies), len(eval_f1s), len(eval_precisions), len(eval_recalls))
 
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
+    plt.figure(figsize=(18, 6))
+    plt.subplot(1, 3, 1)
     plt.plot(epochs[:min_length], train_losses[:min_length],
              label='Training Loss')
     plt.plot(epochs[:min_length], eval_losses[:min_length],
@@ -109,12 +110,23 @@ def plot_training_history(train_losses, eval_losses, eval_accuracies, title):
     plt.ylabel('Loss')
     plt.legend()
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.plot(epochs[:min_length], eval_accuracies[:min_length],
              label='Validation Accuracy')
     plt.title(f'Accuracy - {title}')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.subplot(1, 3, 3)
+    plt.plot(epochs[:min_length], eval_f1s[:min_length], label='Validation F1')
+    plt.plot(epochs[:min_length], eval_precisions[:min_length],
+             label='Validation Precision')
+    plt.plot(epochs[:min_length], eval_recalls[:min_length],
+             label='Validation Recall')
+    plt.title(f'F1, Precision, Recall - {title}')
+    plt.xlabel('Epochs')
+    plt.ylabel('Metrics')
     plt.legend()
 
     plt.show()
@@ -168,6 +180,9 @@ def train_and_evaluate(encodings, labels, title):
             self.train_losses = []
             self.eval_losses = []
             self.eval_accuracies = []
+            self.eval_f1s = []
+            self.eval_precisions = []
+            self.eval_recalls = []
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs is not None:
@@ -177,6 +192,12 @@ def train_and_evaluate(encodings, labels, title):
                     self.eval_losses.append(logs['eval_loss'])
                 if 'eval_accuracy' in logs:
                     self.eval_accuracies.append(logs['eval_accuracy'])
+                if 'eval_f1' in logs:
+                    self.eval_f1s.append(logs['eval_f1'])
+                if 'eval_precision' in logs:
+                    self.eval_precisions.append(logs['eval_precision'])
+                if 'eval_recall' in logs:
+                    self.eval_recalls.append(logs['eval_recall'])
 
     log_callback = LogTrainingLossCallback()
 
@@ -199,14 +220,17 @@ def train_and_evaluate(encodings, labels, title):
     print(f"Evaluation results for {title}: {eval_result}")
 
     plot_training_history(log_callback.train_losses,
-                          log_callback.eval_losses, log_callback.eval_accuracies, title)
+                          log_callback.eval_losses, log_callback.eval_accuracies,
+                          log_callback.eval_f1s, log_callback.eval_precisions, log_callback.eval_recalls, title)
 
-    return log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies
+    return (log_callback.train_losses, log_callback.eval_losses, log_callback.eval_accuracies,
+            log_callback.eval_f1s, log_callback.eval_precisions, log_callback.eval_recalls)
 
 
-def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies):
+def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies, all_eval_f1s, all_eval_precisions, all_eval_recalls):
     min_length = min(min(len(l) for l in all_train_losses), min(
-        len(l) for l in all_eval_losses), min(len(l) for l in all_eval_accuracies))
+        len(l) for l in all_eval_losses), min(len(l) for l in all_eval_accuracies),
+        min(len(l) for l in all_eval_f1s), min(len(l) for l in all_eval_precisions), min(len(l) for l in all_eval_recalls))
     epochs = range(1, min_length + 1)
     avg_train_losses = np.mean([losses[:min_length]
                                for losses in all_train_losses], axis=0)
@@ -214,9 +238,14 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
                               for losses in all_eval_losses], axis=0)
     avg_eval_accuracies = np.mean([accs[:min_length]
                                   for accs in all_eval_accuracies], axis=0)
+    avg_eval_f1s = np.mean([f1s[:min_length] for f1s in all_eval_f1s], axis=0)
+    avg_eval_precisions = np.mean(
+        [precisions[:min_length] for precisions in all_eval_precisions], axis=0)
+    avg_eval_recalls = np.mean([recalls[:min_length]
+                               for recalls in all_eval_recalls], axis=0)
 
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
+    plt.figure(figsize=(18, 6))
+    plt.subplot(1, 3, 1)
     plt.plot(epochs, avg_train_losses, label='Training Loss')
     plt.plot(epochs, avg_eval_losses, label='Validation Loss')
     plt.title('Average Loss')
@@ -224,11 +253,20 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
     plt.ylabel('Loss')
     plt.legend()
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.plot(epochs, avg_eval_accuracies, label='Validation Accuracy')
     plt.title('Average Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.subplot(1, 3, 3)
+    plt.plot(epochs, avg_eval_f1s, label='Validation F1')
+    plt.plot(epochs, avg_eval_precisions, label='Validation Precision')
+    plt.plot(epochs, avg_eval_recalls, label='Validation Recall')
+    plt.title('Average F1, Precision, Recall')
+    plt.xlabel('Epochs')
+    plt.ylabel('Metrics')
     plt.legend()
 
     plt.show()
@@ -237,52 +275,66 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
 def main():
     if not os.path.exists('./results/trained_model'):
         print("Training the model as it doesn't exist.")
-        train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+        train_losses_1, eval_losses_1, eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1 = train_and_evaluate(
             encodings_1, labels_1, 'Dataset 1')
-        train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+        train_losses_2, eval_losses_2, eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2 = train_and_evaluate(
             encodings_2, labels_2, 'Dataset 2')
-        train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+        train_losses_3, eval_losses_3, eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3 = train_and_evaluate(
             encodings_3, labels_3, 'Dataset 3')
         np.savez('./results/training_metrics.npz',
-                 train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1,
-                 train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2,
-                 train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3)
+                 train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1, eval_f1s_1=eval_f1s_1, eval_precisions_1=eval_precisions_1, eval_recalls_1=eval_recalls_1,
+                 train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2, eval_f1s_2=eval_f1s_2, eval_precisions_2=eval_precisions_2, eval_recalls_2=eval_recalls_2,
+                 train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3, eval_f1s_3=eval_f1s_3, eval_precisions_3=eval_precisions_3, eval_recalls_3=eval_recalls_3)
     else:
         if not os.path.exists('./results/training_metrics.npz'):
             print("Metrics file not found. Retraining the model.")
-            train_losses_1, eval_losses_1, eval_accuracies_1 = train_and_evaluate(
+            train_losses_1, eval_losses_1, eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1 = train_and_evaluate(
                 encodings_1, labels_1, 'Dataset 1')
-            train_losses_2, eval_losses_2, eval_accuracies_2 = train_and_evaluate(
+            train_losses_2, eval_losses_2, eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2 = train_and_evaluate(
                 encodings_2, labels_2, 'Dataset 2')
-            train_losses_3, eval_losses_3, eval_accuracies_3 = train_and_evaluate(
+            train_losses_3, eval_losses_3, eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3 = train_and_evaluate(
                 encodings_3, labels_3, 'Dataset 3')
             np.savez('./results/training_metrics.npz',
-                     train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1,
-                     train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2,
-                     train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3)
+                     train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1, eval_f1s_1=eval_f1s_1, eval_precisions_1=eval_precisions_1, eval_recalls_1=eval_recalls_1,
+                     train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2, eval_f1s_2=eval_f1s_2, eval_precisions_2=eval_precisions_2, eval_recalls_2=eval_recalls_2,
+                     train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3, eval_f1s_3=eval_f1s_3, eval_precisions_3=eval_precisions_3, eval_recalls_3=eval_recalls_3)
         else:
             print("Loading the previously trained model and metrics.")
             metrics = np.load('./results/training_metrics.npz')
             train_losses_1 = metrics['train_losses_1'].tolist()
             eval_losses_1 = metrics['eval_losses_1'].tolist()
             eval_accuracies_1 = metrics['eval_accuracies_1'].tolist()
+            eval_f1s_1 = metrics['eval_f1s_1'].tolist()
+            eval_precisions_1 = metrics['eval_precisions_1'].tolist()
+            eval_recalls_1 = metrics['eval_recalls_1'].tolist()
             train_losses_2 = metrics['train_losses_2'].tolist()
             eval_losses_2 = metrics['eval_losses_2'].tolist()
             eval_accuracies_2 = metrics['eval_accuracies_2'].tolist()
+            eval_f1s_2 = metrics['eval_f1s_2'].tolist()
+            eval_precisions_2 = metrics['eval_precisions_2'].tolist()
+            eval_recalls_2 = metrics['eval_recalls_2'].tolist()
             train_losses_3 = metrics['train_losses_3'].tolist()
             eval_losses_3 = metrics['eval_losses_3'].tolist()
             eval_accuracies_3 = metrics['eval_accuracies_3'].tolist()
+            eval_f1s_3 = metrics['eval_f1s_3'].tolist()
+            eval_precisions_3 = metrics['eval_precisions_3'].tolist()
+            eval_recalls_3 = metrics['eval_recalls_3'].tolist()
 
     plot_training_history(train_losses_1, eval_losses_1,
-                          eval_accuracies_1, 'Dataset 1')
+                          eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1, 'Dataset 1')
     plot_training_history(train_losses_2, eval_losses_2,
-                          eval_accuracies_2, 'Dataset 2')
+                          eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2, 'Dataset 2')
     plot_training_history(train_losses_3, eval_losses_3,
-                          eval_accuracies_3, 'Dataset 3')
+                          eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3, 'Dataset 3')
 
     plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3],
                                   [eval_losses_1, eval_losses_2, eval_losses_3],
-                                  [eval_accuracies_1, eval_accuracies_2, eval_accuracies_3])
+                                  [eval_accuracies_1, eval_accuracies_2,
+                                      eval_accuracies_3],
+                                  [eval_f1s_1, eval_f1s_2, eval_f1s_3],
+                                  [eval_precisions_1, eval_precisions_2,
+                                      eval_precisions_3],
+                                  [eval_recalls_1, eval_recalls_2, eval_recalls_3])
 
 
 if __name__ == "__main__":
