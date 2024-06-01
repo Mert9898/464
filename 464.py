@@ -28,8 +28,8 @@ lemmatizer = WordNetLemmatizer()
 def preprocess_text(text, language='english'):
     tokens = word_tokenize(text)
     stop_words = set(stopwords.words(language))
-    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
-    ))) for token in tokens if token.isalpha() and token not in stop_words]
+    tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
+                                                )) for token in tokens if token.isalpha() and token not in stop_words]
     return ' '.join(tokens)
 
 
@@ -117,28 +117,26 @@ for dataset_name, dataset in datasets.items():
         print(f'{dataset_name} - Loss: {loss}, Accuracy: {accuracy}')
         print(f'Saving training history for {dataset_name}')
 
-        try:
-            plt.figure(figsize=(12, 4))
-            plt.subplot(1, 2, 1)
-            plt.plot(history.history['loss'], label='Training Loss')
-            plt.plot(history.history['val_loss'], label='Validation Loss')
-            plt.title(f'Loss - {dataset_name}')
-            plt.xlabel('Epochs')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.subplot(1, 2, 2)
-            plt.plot(history.history['accuracy'], label='Training Accuracy')
-            plt.plot(history.history['val_accuracy'],
-                     label='Validation Accuracy')
-            plt.title(f'Accuracy - {dataset_name}')
-            plt.xlabel('Epochs')
-            plt.ylabel('Accuracy')
-            plt.legend()
-            plt.savefig(f"{dataset_name}_training_history.png")
-            plt.close()
-            print(f'Training history for {dataset_name} saved.')
-        except Exception as e:
-            print(f'Failed to save training history for {dataset_name}: {e}')
+    try:
+        plt.figure(figsize=(12, 4))
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Training Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title(f'Loss - {dataset_name}')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['accuracy'], label='Training Accuracy')
+        plt.plot(history.history['val_accuracy'],
+                 label='Validation Accuracy')
+        plt.title(f'Accuracy - {dataset_name}')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.show()
+    except Exception as e:
+        print(f'Failed to display training history for {dataset_name}: {e}')
 
 label_encoder = LabelEncoder()
 all_labels = label_encoder.fit_transform(all_labels)
@@ -202,11 +200,9 @@ else:
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.legend()
-        plt.savefig("General_training_history.png")
-        plt.close()
-        print('General training history saved.')
+        plt.show()
     except Exception as e:
-        print(f'Failed to save general training history: {e}')
+        print(f'Failed to display general training history: {e}')
 
 # Tüm datasetler için ortalama loss ve accuracy grafikleri
 if histories:
@@ -236,7 +232,6 @@ if histories:
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend()
-    plt.savefig("Average_training_history.png")
     plt.show()
 
 
@@ -244,8 +239,8 @@ def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='englis
     def preprocess_text(text, language='english'):
         tokens = word_tokenize(text)
         stop_words = set(stopwords.words(language))
-        tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower(
-        ))) for token in tokens if token.isalpha() and token not in stop_words]
+        tokens = [lemmatizer.lemmatize(stemmer.stem(token.lower()
+                                                    )) for token in tokens if token.isalpha() and token not in stop_words]
         return ' '.join(tokens)
 
     processed_texts = [preprocess_text(
