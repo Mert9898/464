@@ -91,9 +91,9 @@ else:
     model = Sequential()
     model.add(Embedding(vocab_size, 100))
     model.add(SpatialDropout1D(0.5))
-    model.add(LSTM(64, return_sequences=True,
+    model.add(LSTM(128, return_sequences=True,
               dropout=0.4, recurrent_dropout=0.4))
-    model.add(LSTM(32, dropout=0.4, recurrent_dropout=0.4))
+    model.add(LSTM(64, dropout=0.4, recurrent_dropout=0.4))
     model.add(BatchNormalization())
     model.add(Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01)))
 
@@ -107,7 +107,7 @@ else:
     reduce_lr = ReduceLROnPlateau(
         monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
 
-    history = model.fit(X_train, y_train, epochs=50, batch_size=16, validation_split=0.3, callbacks=[
+    history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.3, callbacks=[
                         early_stopping, model_checkpoint_general, reduce_lr])
 
     loss, accuracy = model.evaluate(X_test, y_test, verbose=2)
