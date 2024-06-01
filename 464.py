@@ -208,6 +208,37 @@ else:
     except Exception as e:
         print(f'Failed to save general training history: {e}')
 
+# Tüm datasetler için ortalama loss ve accuracy grafikleri
+if histories:
+    min_len = min([len(history.history['loss'])
+                  for history in histories.values()])
+    avg_loss = np.mean([history.history['loss'][:min_len]
+                       for history in histories.values()], axis=0)
+    avg_val_loss = np.mean([history.history['val_loss'][:min_len]
+                           for history in histories.values()], axis=0)
+    avg_accuracy = np.mean([history.history['accuracy'][:min_len]
+                           for history in histories.values()], axis=0)
+    avg_val_accuracy = np.mean([history.history['val_accuracy'][:min_len]
+                               for history in histories.values()], axis=0)
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(avg_loss, label='Avg Training Loss')
+    plt.plot(avg_val_loss, label='Avg Validation Loss')
+    plt.title('Average Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(avg_accuracy, label='Avg Training Accuracy')
+    plt.plot(avg_val_accuracy, label='Avg Validation Accuracy')
+    plt.title('Average Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.savefig("Average_training_history.png")
+    plt.show()
+
 
 def load_model_and_infer_lstm(model_path, tokenizer, new_texts, language='english'):
     def preprocess_text(text, language='english'):
@@ -232,32 +263,3 @@ new_texts = ["This is a new text to classify.",
 predictions = load_model_and_infer_lstm(
     model_path_general, tokenizer, new_texts, language='english')
 print(f"Predictions: {predictions}")
-
-# Tüm datasetler için ortalama loss ve accuracy grafikleri
-if histories:
-    avg_loss = np.mean([history.history['loss']
-                       for history in histories.values()], axis=0)
-    avg_val_loss = np.mean([history.history['val_loss']
-                           for history in histories.values()], axis=0)
-    avg_accuracy = np.mean([history.history['accuracy']
-                           for history in histories.values()], axis=0)
-    avg_val_accuracy = np.mean([history.history['val_accuracy']
-                               for history in histories.values()], axis=0)
-
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(avg_loss, label='Avg Training Loss')
-    plt.plot(avg_val_loss, label='Avg Validation Loss')
-    plt.title('Average Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.subplot(1, 2, 2)
-    plt.plot(avg_accuracy, label='Avg Training Accuracy')
-    plt.plot(avg_val_accuracy, label='Avg Validation Accuracy')
-    plt.title('Average Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    plt.savefig("Average_training_history.png")
-    plt.show()
