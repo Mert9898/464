@@ -49,7 +49,7 @@ def load_and_sample_dataset(dataset_name, split, sample_size):
     return dataset
 
 
-sample_size = 250
+sample_size = 10000
 
 dataset_1 = load_and_sample_dataset(
     "hkust-nlp/deita-quality-scorer-data", 'validation', sample_size)
