@@ -160,3 +160,22 @@ new_texts = ["This is a new text to classify.",
 predictions = load_model_and_infer_lstm(
     model_path_general, tokenizer, new_texts, language='english')
 print(f"Predictions: {predictions}")
+
+# Grafikleri Göster
+if 'history' in locals():
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Loss - General')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Accuracy - General')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.show()
