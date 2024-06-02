@@ -216,6 +216,18 @@ def train_and_evaluate(encodings, labels, title):
 
     trainer.train()
 
+    model.save_pretrained(f'./results/trained_model_{title.replace(" ", "_")}')
+    tokenizer.save_pretrained(
+        f'./results/trained_model_{title.replace(" ", "_")}')
+
+    np.savez(f'./results/training_metrics_{title.replace(" ", "_")}.npz',
+             train_losses=log_callback.train_losses,
+             eval_losses=log_callback.eval_losses,
+             eval_accuracies=log_callback.eval_accuracies,
+             eval_f1s=log_callback.eval_f1s,
+             eval_precisions=log_callback.eval_precisions,
+             eval_recalls=log_callback.eval_recalls)
+
     eval_result = trainer.evaluate()
     print(f"Evaluation results for {title}: {eval_result}")
 
@@ -228,9 +240,8 @@ def train_and_evaluate(encodings, labels, title):
 
 
 def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_accuracies, all_eval_f1s, all_eval_precisions, all_eval_recalls):
-    min_length = min(min(len(l) for l in all_train_losses), min(
-        len(l) for l in all_eval_losses), min(len(l) for l in all_eval_accuracies),
-        min(len(l) for l in all_eval_f1s), min(len(l) for l in all_eval_precisions), min(len(l) for l in all_eval_recalls))
+    min_length = min(min(len(l) for l in all_train_losses), min(len(l) for l in all_eval_losses), min(len(l) for l in all_eval_accuracies),
+                     min(len(l) for l in all_eval_f1s), min(len(l) for l in all_eval_precisions), min(len(l) for l in all_eval_recalls))
     epochs = range(1, min_length + 1)
     avg_train_losses = np.mean([losses[:min_length]
                                for losses in all_train_losses], axis=0)
@@ -273,68 +284,47 @@ def plot_overall_training_history(all_train_losses, all_eval_losses, all_eval_ac
 
 
 def main():
-    if not os.path.exists('./results/trained_model'):
-        print("Training the model as it doesn't exist.")
-        train_losses_1, eval_losses_1, eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1 = train_and_evaluate(
-            encodings_1, labels_1, 'Dataset 1')
-        train_losses_2, eval_losses_2, eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2 = train_and_evaluate(
-            encodings_2, labels_2, 'Dataset 2')
-        train_losses_3, eval_losses_3, eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3 = train_and_evaluate(
-            encodings_3, labels_3, 'Dataset 3')
-        np.savez('./results/training_metrics.npz',
-                 train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1, eval_f1s_1=eval_f1s_1, eval_precisions_1=eval_precisions_1, eval_recalls_1=eval_recalls_1,
-                 train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2, eval_f1s_2=eval_f1s_2, eval_precisions_2=eval_precisions_2, eval_recalls_2=eval_recalls_2,
-                 train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3, eval_f1s_3=eval_f1s_3, eval_precisions_3=eval_precisions_3, eval_recalls_3=eval_recalls_3)
-    else:
-        if not os.path.exists('./results/training_metrics.npz'):
-            print("Metrics file not found. Retraining the model.")
-            train_losses_1, eval_losses_1, eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1 = train_and_evaluate(
-                encodings_1, labels_1, 'Dataset 1')
-            train_losses_2, eval_losses_2, eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2 = train_and_evaluate(
-                encodings_2, labels_2, 'Dataset 2')
-            train_losses_3, eval_losses_3, eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3 = train_and_evaluate(
-                encodings_3, labels_3, 'Dataset 3')
-            np.savez('./results/training_metrics.npz',
-                     train_losses_1=train_losses_1, eval_losses_1=eval_losses_1, eval_accuracies_1=eval_accuracies_1, eval_f1s_1=eval_f1s_1, eval_precisions_1=eval_precisions_1, eval_recalls_1=eval_recalls_1,
-                     train_losses_2=train_losses_2, eval_losses_2=eval_losses_2, eval_accuracies_2=eval_accuracies_2, eval_f1s_2=eval_f1s_2, eval_precisions_2=eval_precisions_2, eval_recalls_2=eval_recalls_2,
-                     train_losses_3=train_losses_3, eval_losses_3=eval_losses_3, eval_accuracies_3=eval_accuracies_3, eval_f1s_3=eval_f1s_3, eval_precisions_3=eval_precisions_3, eval_recalls_3=eval_recalls_3)
+    all_train_losses, all_eval_losses, all_eval_accuracies, all_eval_f1s, all_eval_precisions, all_eval_recalls = [], [], [], [], [], []
+    for i, (encodings, labels, title) in enumerate([(encodings_1, labels_1, 'Dataset 1'),
+                                                    (encodings_2, labels_2,
+                                                     'Dataset 2'),
+                                                    (encodings_3, labels_3, 'Dataset 3')]):
+        model_dir = f'./results/trained_model_{title.replace(" ", "_")}'
+        metrics_file = f'./results/training_metrics_{
+            title.replace(" ", "_")}.npz'
+        if not os.path.exists(model_dir):
+            print(f"Training the model for {title} as it doesn't exist.")
+            train_losses, eval_losses, eval_accuracies, eval_f1s, eval_precisions, eval_recalls = train_and_evaluate(
+                encodings, labels, title)
         else:
-            print("Loading the previously trained model and metrics.")
-            metrics = np.load('./results/training_metrics.npz')
-            train_losses_1 = metrics['train_losses_1'].tolist()
-            eval_losses_1 = metrics['eval_losses_1'].tolist()
-            eval_accuracies_1 = metrics['eval_accuracies_1'].tolist()
-            eval_f1s_1 = metrics['eval_f1s_1'].tolist()
-            eval_precisions_1 = metrics['eval_precisions_1'].tolist()
-            eval_recalls_1 = metrics['eval_recalls_1'].tolist()
-            train_losses_2 = metrics['train_losses_2'].tolist()
-            eval_losses_2 = metrics['eval_losses_2'].tolist()
-            eval_accuracies_2 = metrics['eval_accuracies_2'].tolist()
-            eval_f1s_2 = metrics['eval_f1s_2'].tolist()
-            eval_precisions_2 = metrics['eval_precisions_2'].tolist()
-            eval_recalls_2 = metrics['eval_recalls_2'].tolist()
-            train_losses_3 = metrics['train_losses_3'].tolist()
-            eval_losses_3 = metrics['eval_losses_3'].tolist()
-            eval_accuracies_3 = metrics['eval_accuracies_3'].tolist()
-            eval_f1s_3 = metrics['eval_f1s_3'].tolist()
-            eval_precisions_3 = metrics['eval_precisions_3'].tolist()
-            eval_recalls_3 = metrics['eval_recalls_3'].tolist()
+            if not os.path.exists(metrics_file):
+                print(f"Metrics file not found for {
+                      title}. Retraining the model.")
+                train_losses, eval_losses, eval_accuracies, eval_f1s, eval_precisions, eval_recalls = train_and_evaluate(
+                    encodings, labels, title)
+            else:
+                print(
+                    f"Loading the previously trained model and metrics for {title}.")
+                metrics = np.load(metrics_file)
+                train_losses = metrics['train_losses'].tolist()
+                eval_losses = metrics['eval_losses'].tolist()
+                eval_accuracies = metrics['eval_accuracies'].tolist()
+                eval_f1s = metrics['eval_f1s'].tolist()
+                eval_precisions = metrics['eval_precisions'].tolist()
+                eval_recalls = metrics['eval_recalls'].tolist()
 
-    plot_training_history(train_losses_1, eval_losses_1,
-                          eval_accuracies_1, eval_f1s_1, eval_precisions_1, eval_recalls_1, 'Dataset 1')
-    plot_training_history(train_losses_2, eval_losses_2,
-                          eval_accuracies_2, eval_f1s_2, eval_precisions_2, eval_recalls_2, 'Dataset 2')
-    plot_training_history(train_losses_3, eval_losses_3,
-                          eval_accuracies_3, eval_f1s_3, eval_precisions_3, eval_recalls_3, 'Dataset 3')
+        all_train_losses.append(train_losses)
+        all_eval_losses.append(eval_losses)
+        all_eval_accuracies.append(eval_accuracies)
+        all_eval_f1s.append(eval_f1s)
+        all_eval_precisions.append(eval_precisions)
+        all_eval_recalls.append(eval_recalls)
 
-    plot_overall_training_history([train_losses_1, train_losses_2, train_losses_3],
-                                  [eval_losses_1, eval_losses_2, eval_losses_3],
-                                  [eval_accuracies_1, eval_accuracies_2,
-                                      eval_accuracies_3],
-                                  [eval_f1s_1, eval_f1s_2, eval_f1s_3],
-                                  [eval_precisions_1, eval_precisions_2,
-                                      eval_precisions_3],
-                                  [eval_recalls_1, eval_recalls_2, eval_recalls_3])
+        plot_training_history(train_losses, eval_losses, eval_accuracies,
+                              eval_f1s, eval_precisions, eval_recalls, title)
+
+    plot_overall_training_history(all_train_losses, all_eval_losses,
+                                  all_eval_accuracies, all_eval_f1s, all_eval_precisions, all_eval_recalls)
 
 
 if __name__ == "__main__":
@@ -385,5 +375,5 @@ def load_model_and_infer(model_path, tokenizer, new_texts, language='english'):
 new_texts = ["This is a new text to classify.",
              "Another text for classification."]
 predictions = load_model_and_infer(
-    './results/trained_model', tokenizer, new_texts, language='english')
+    './results/trained_model_Dataset_1', tokenizer, new_texts, language='english')
 print(f"Predictions: {predictions}")
